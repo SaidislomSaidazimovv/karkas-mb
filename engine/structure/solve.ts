@@ -33,6 +33,13 @@ import {
 /** 16 mm stock — the only board thickness (law L1). */
 export const BOARD_MM10: mm10 = 160;
 
+/**
+ * Edge-band tape thickness on a banded edge — 1.0 mm, GROUNDED against the factory file
+ * tests/golden/xml/POLKA-1_7_1.XML (`<Edge Face="3" Thickness="1.000" />`). S3-E5 / L8:
+ * a banded edge must be EMITTED in the cut output, not implied.
+ */
+export const EDGE_BAND_MM10: mm10 = 10;
+
 const GRAIN: Grain = "L";
 
 function panel(id: string, name: string, length_mm10: mm10, width_mm10: mm10): Part {
@@ -87,9 +94,14 @@ function instancePart(block: Block, inst: Instance): Part | null {
   if (!section || !component) return null;
   // First slice handles shelves; other roles return null until their step.
   if (component.role === "internal_shelf") {
-    const length = section.box.w - 2 * BOARD_MM10; // between the side panels / dividers
-    const width = section.box.d;
-    return panel(`${block.id}__inst_${inst.id}`, component.name, length, width);
+    const length = section.box.w - 2 * BOARD_MM10; // between the side panels / dividers (X)
+    const width = section.box.d; // depth (Y)
+    const p = panel(`${block.id}__inst_${inst.id}`, component.name, length, width);
+    // S3-E5 edge-banding: a shelf is banded on its FRONT edge (Face 3 = edges[2]). GROUNDED by
+    // POLKA-1_7_1.XML, whose orientation matches this panel (Length = span, Width = depth).
+    // Other roles' front-edge face index isn't grounded yet (no SWJ edge-face convention doc /
+    // matching fixture), so carcass/divider/back stay bare until that lands.
+    return { ...p, edges: [0, 0, EDGE_BAND_MM10, 0] };
   }
   return null;
 }
