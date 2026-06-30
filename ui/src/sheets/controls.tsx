@@ -205,6 +205,58 @@ export function ListRow({
   );
 }
 
+/* ---- per-edge kromka (Material mode, §5) — band thickness per cabinet edge ---- */
+export type EdgeBand = "none" | "16" | "32";
+export type EdgeKey = "t" | "b" | "l" | "r";
+export const NEXT_BAND: Record<EdgeBand, EdgeBand> = { none: "16", "16": "32", "32": "none" };
+const EDGES: { key: EdgeKey; label: string }[] = [
+  { key: "t", label: "Сверху" },
+  { key: "b", label: "Снизу" },
+  { key: "l", label: "Слева" },
+  { key: "r", label: "Справа" },
+];
+
+export function EdgeKromka({
+  values, onCycle,
+}: {
+  values: Record<EdgeKey, EdgeBand>;
+  onCycle: (edge: EdgeKey) => void;
+}) {
+  return (
+    <View style={ek.wrap}>
+      <Text style={ek.label}>Кромка по краям (мм) · тап меняет</Text>
+      <View style={ek.grid}>
+        {EDGES.map((e) => {
+          const v = values[e.key];
+          const on = v !== "none";
+          return (
+            <Pressable key={e.key} style={[ek.chip, on && ek.chipOn]} onPress={() => onCycle(e.key)}>
+              <Text style={[ek.edge, on && ek.edgeOn]}>{e.label}</Text>
+              <Text style={[ek.val, on && ek.valOn]}>{v === "none" ? "нет" : v}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const ek = StyleSheet.create({
+  wrap: { paddingTop: 10 },
+  label: { fontFamily: FONT, fontSize: 12.5, color: C.ink3, marginBottom: 8 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    width: "47%", flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    height: 44, paddingHorizontal: 12, borderRadius: 12, backgroundColor: C.field,
+    borderWidth: 1, borderColor: C.field,
+  },
+  chipOn: { borderColor: C.selLine, backgroundColor: "#EAF0FF" },
+  edge: { fontFamily: FONT, fontSize: 13, fontWeight: "600", color: C.ink2 },
+  edgeOn: { color: C.ink },
+  val: { fontFamily: FONT, fontSize: 14, fontWeight: "800", color: C.disabled },
+  valOn: { color: C.selLine },
+});
+
 export const sheetBase: ViewStyle = {
   backgroundColor: C.bg,
   borderTopLeftRadius: R.sheet,

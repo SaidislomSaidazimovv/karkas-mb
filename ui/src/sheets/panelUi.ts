@@ -11,17 +11,24 @@ interface PanelUiState {
   addOpen: boolean;
   /** Drill path — child-node ids entered, deepest last. Empty = the Add root. */
   drill: readonly string[];
+  /** «Готово»/CNC-export sheet open? (cut-list preview + «Экспорт На ЧПУ») */
+  exportOpen: boolean;
   openAdd(): void;
   closeAdd(): void;
   drillInto(nodeId: string): void;
   drillBack(): void;
+  openExport(): void;
+  closeExport(): void;
 }
 
 export const usePanelUi = create<PanelUiState>((set, get) => ({
   addOpen: false,
   drill: [],
+  exportOpen: false,
   openAdd: () => set({ addOpen: true, drill: [] }),
   closeAdd: () => set({ addOpen: false, drill: [] }),
   drillInto: (nodeId) => set({ drill: [...get().drill, nodeId] }),
   drillBack: () => set({ drill: get().drill.slice(0, -1) }),
+  openExport: () => set({ exportOpen: true, addOpen: false }),
+  closeExport: () => set({ exportOpen: false }),
 }));

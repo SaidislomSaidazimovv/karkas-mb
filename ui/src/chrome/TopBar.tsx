@@ -4,6 +4,7 @@
 //   Проект №1  ›  Шкаф №3 · каркас
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
+import { usePanelUi } from "../sheets/panelUi";
 import { C, FONT, R } from "../../theme";
 import { Icon } from "./Icon";
 
@@ -23,6 +24,9 @@ export function TopBar({
   onMenu?: () => void;
 }) {
   const price = useApp((s) => s.price_sum);
+  const openExport = usePanelUi((s) => s.openExport);
+  // «Дальше»/«Готово» → CNC-export sheet, unless the host wires its own advance handler
+  const advance = onAdvance ?? openExport;
   return (
     <View>
       <View style={styles.bar}>
@@ -40,7 +44,7 @@ export function TopBar({
 
         <Pressable
           style={[styles.pill, !canAdvance && styles.pillOff]}
-          onPress={canAdvance ? onAdvance : undefined}
+          onPress={canAdvance ? advance : undefined}
         >
           <Text style={[styles.pillTxt, !canAdvance && styles.pillTxtOff]}>Дальше</Text>
         </Pressable>

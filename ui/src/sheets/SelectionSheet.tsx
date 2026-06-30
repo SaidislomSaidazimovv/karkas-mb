@@ -19,8 +19,10 @@ import type { PanelPlacement, StructuralModel } from "../../engineBridge";
 import { C, FONT } from "../../theme";
 import { usePanelUi } from "./panelUi";
 import { AddSheet } from "./AddSheet";
+import { ExportSheet } from "../chrome/ExportSheet";
 import {
-  Grab, SheetHeader, Badge, NumberStepper, Segment, Toggle, MenuRow, ListRow, sheetBase,
+  Grab, SheetHeader, Badge, NumberStepper, Segment, Toggle, MenuRow, ListRow,
+  EdgeKromka, NEXT_BAND, type EdgeBand, type EdgeKey, sheetBase,
 } from "./controls";
 
 const MATERIAL_CATALOG = [
@@ -46,6 +48,7 @@ export function SelectionSheet() {
   const resize = useApp((s) => s.resize);
   const detach = useApp((s) => s.detach);
   const addOpen = usePanelUi((s) => s.addOpen);
+  const exportOpen = usePanelUi((s) => s.exportOpen);
 
   const partId = selection.partIds[0];
   const placement: PanelPlacement | undefined = scene.find((p) => p.id === partId);
@@ -66,12 +69,15 @@ export function SelectionSheet() {
   const [hw, setHw] = useState<"hinge" | "handle" | "slide">("hinge");
   const [material, setMaterial] = useState("oak-sonoma");
   const [partial, setPartial] = useState(true);
+  const [edges, setEdges] = useState<Record<EdgeKey, EdgeBand>>({ t: "16", b: "16", l: "16", r: "16" });
+  const cycleEdge = (e: EdgeKey) => setEdges((prev) => ({ ...prev, [e]: NEXT_BAND[prev[e]] }));
 
   // one-time group choice (#36) — remembered per componentId
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<(() => void) | null>(null);
 
-  // «Добавить» drill-flow takes over the sheet zone (available with or without a selection)
+  // «Готово»/CNC-export and «Добавить» drill take over the sheet zone (both selection-independent)
+  if (exportOpen) return <ExportSheet />;
   if (addOpen) return <AddSheet />;
   if (selection.kind === "none") return null;
 
@@ -123,7 +129,9 @@ export function SelectionSheet() {
           onDetach={() => { if (instId) detach(instId); }}
         />
       )}
-      {mode === "material" && <MaterialBody selected={material} onSelect={setMaterial} />}
+      {mode === "material" && (
+        <MaterialBody selected={material} onSelect={setMaterial} edges={edges} onCycleEdge={cycleEdge} />
+      )}
       {mode === "hardware" && <HardwareBody name={name} value={hw} onChange={setHw} />}
       {mode === "frame" && <FrameBody name={name} partial={partial} onPartial={setPartial} />}
     </View>
@@ -162,8 +170,14 @@ function BuildBody({
   );
 }
 
-/* ===================== MATERIAL (placeholder body — engine: S3-E5) ===================== */
-function MaterialBody({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) {
+/* ===================== MATERIAL (placeholder body — engine: S3-E5) =====================
+   §5: покрытие-katalog + per-edge kromka. Local-only UI — store'ga yozmaydi (engine kutiladi). */
+function MaterialBody({
+  selected, onSelect, edges, onCycleEdge,
+}: {
+  selected: string; onSelect: (id: string) => void;
+  edges: Record<EdgeKey, EdgeBand>; onCycleEdge: (e: EdgeKey) => void;
+}) {
   return (
     <>
       <View style={styles.counts}>
@@ -175,21 +189,39 @@ function MaterialBody({ selected, onSelect }: { selected: string; onSelect: (id:
       {MATERIAL_CATALOG.map((m) => (
         <ListRow key={m.id} swatch={m.swatch} title={m.name} sub={m.sub} selected={m.id === selected} onPress={() => onSelect(m.id)} />
       ))}
+      <EdgeKromka values={edges} onCycle={onCycleEdge} />
     </>
   );
 }
 
-/* ===================== HARDWARE (placeholder body — engine: S3-E6) ===================== */
+/* ===================== HARDWARE (placeholder body — engine: S3-E6) =====================
+   §5: петля/ручка/направляющая segment + opsiya ro'yxati. Local-only UI. */
+const HARDWARE_OPTIONS: Record<"hinge" | "handle" | "slide", { id: string; icon: "hinge" | "handle" | "slide"; title: string; sub: string }[]> = {
+  hinge: [
+    { id: "blum-clip", icon: "hinge", title: "Blum CLIP top 110°", sub: "накладная · с доводчиком" },
+    { id: "std-95", icon: "hinge", title: "Накладная 95°", sub: "без доводчика" },
+  ],
+  handle: [
+    { id: "rail-160", icon: "handle", title: "Рейлинг 160 мм", sub: "алюминий" },
+    { id: "knob", icon: "handle", title: "Кнопка-ручка", sub: "одно отверстие" },
+  ],
+  slide: [
+    { id: "ball-450", icon: "slide", title: "Шариковые 450 мм", sub: "полное выдвижение" },
+    { id: "tandem", icon: "slide", title: "Tandembox", sub: "скрытые · с доводчиком" },
+  ],
+};
+
 function HardwareBody({
   name, value, onChange,
 }: { name: string; value: "hinge" | "handle" | "slide"; onChange: (k: "hinge" | "handle" | "slide") => void }) {
+  const [pick, setPick] = useState<string>(HARDWARE_OPTIONS[value][0]!.id);
   return (
     <>
       <SheetHeader icon="hinge" title={name} role="2 петли · накладная" />
       <View style={{ paddingVertical: 6 }}>
         <Segment
           value={value}
-          onChange={onChange}
+          onChange={(k) => { onChange(k); setPick(HARDWARE_OPTIONS[k][0]!.id); }}
           options={[
             { key: "hinge", label: "Петля" },
             { key: "handle", label: "Ручка" },
@@ -197,6 +229,16 @@ function HardwareBody({
           ]}
         />
       </View>
+      {HARDWARE_OPTIONS[value].map((o) => (
+        <MenuRow
+          key={o.id}
+          icon={o.icon}
+          title={o.title}
+          sub={o.sub}
+          trailing={o.id === pick ? "check" : "none"}
+          onPress={() => setPick(o.id)}
+        />
+      ))}
     </>
   );
 }
