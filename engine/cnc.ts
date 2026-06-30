@@ -19,5 +19,5 @@ import { loadHardwareSpec } from "./catalogs/hardwareSpec.js";
  * validateParts → exportSWJ008 (the SWJ008 emit wires in a later slice).
  */
 export function solveModelToParts(model: StructuralModel): Part[] {
-  return applyDrilling(solveStructure(model), loadHardwareSpec());
+  return applyDrilling(solveStructure(model), model, loadHardwareSpec());
 }

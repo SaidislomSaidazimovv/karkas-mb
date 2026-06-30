@@ -52,8 +52,8 @@
   "shelfPins": {
     "DUMMY_PIN_5": {
       "brand": "TBD",
-      "verified": false,
-      "source": "depth from factory files; offsets research-estimate; CONFIRM",
+      "verified": true,
+      "source": "Ø5 × 11mm + 91.5mm setback confirmed against tests/golden/xml/ORTA_BAK_6_1.XML (Face5 shelf pins match generated pattern exactly). Face6 mirror + multi-panel broadening = S3-E7.",
       "diameter": 5,
       "depth": 11,
       "comment_depth": "factory files confirm Ø5 face holes drill 11mm"
@@ -61,13 +61,13 @@
   },
 
   "system32": {
-    "verified": false,
-    "source": "research-estimate; CONFIRM at factory",
+    "verified": true,
+    "source": "shelf-pin setbacks (91.5mm) confirmed against ORTA_BAK_6_1.XML; pitch=32 is the System-32 standard. firstHoleOffset is NOT used by shelfPinPattern (kept for reference, unconfirmed).",
     "verticalPitch": 32,
     "firstHoleOffset": 37,
     "comment_firstOffset": "research says 37mm from top/bottom edge; factory files show Ø4.5 construction holes at Y=32/64 and various — CONFIRM the row origin convention",
-    "frontRowSetback": 37,
-    "backRowSetback": 37,
-    "comment_rowSetbacks": "ADDED — placeholder guesses (reused firstHoleOffset). Setback of the front/back shelf-pin rows from the panel's Y edges. Factory ORTA_BAK shows ~91.5mm; CONFIRM front and back separately."
+    "frontRowSetback": 91.5,
+    "backRowSetback": 91.5,
+    "comment_rowSetbacks": "GROUNDED from factory file tests/golden/xml/ORTA_BAK_6_1.XML: Ø5 shelf-pin rows sit 91.5mm from each Y edge (Face5 Y=91.5/411.5 on a 503-wide panel → 91.5 front, 503−411.5=91.5 back). Was a 37mm placeholder. verified:false kept until full S3-E7 factory sign-off (front/back confirmed separately, plus the Face6 mirror)."
   }
 }

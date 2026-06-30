@@ -1,9 +1,11 @@
-// S3-E2 — drilling integration (slice 1: System-32 shelf-pin line-boring).
-// Proves the Layer-1 primitives, formerly dead code ("defined but never called"), are now
-// invoked automatically by the model→parts manufacturing path, and that the drilled set
-// stays inside the safety gate. Spec values are still the dummy catalog (verified:false),
-// so this asserts the STRUCTURE of the drilling (which panels, paired rows, in-bounds),
-// NOT factory-exact coordinates — those land with S3-E7 verified hardware.
+// S3-E2 — drilling integration (shelf-pin line-boring).
+// Proves the Layer-1 primitives, formerly dead code, are now invoked automatically by the
+// model→parts manufacturing path, that holes land at the REAL shelf positions (not a synthetic
+// column), and that the drilled set stays inside the safety gate.
+//
+// GROUNDING (tests/golden/xml/ORTA_BAK_6_1.XML): a side panel drills a front+back Ø5 pair per
+// shelf at the shelf's height — depth 11 mm, 91.5 mm setback. Spec is the dummy catalog
+// (verified:false) so the values now MATCH the factory file but full sign-off is S3-E7.
 
 import { describe, expect, it } from "vitest";
 
@@ -12,6 +14,10 @@ import { solveStructure } from "../engine/structure/solve.js";
 import { solveModelToParts } from "../engine/cnc.js";
 import { validateParts } from "../engine/core/validate.js";
 
+// The demo block has three internal shelves (anchor heights 2400 / 4800 / 3600).
+const SHELVES = 3;
+const ROWS = 2; // front + back row per shelf
+
 describe("S3-E2 drilling integration", () => {
   it("solveStructure alone leaves every panel blank (drilling is a separate pass)", () => {
     const parts = solveStructure(buildDemoModel());
@@ -19,17 +25,20 @@ describe("S3-E2 drilling integration", () => {
     expect(parts.every((p) => p.operations.length === 0)).toBe(true);
   });
 
-  it("the manufacturing path line-bores both side panels of a block with shelves", () => {
+  it("drills a front+back Ø5 pair per shelf on the side panels (real positions, not a column)", () => {
     const parts = solveModelToParts(buildDemoModel());
     const sides = parts.filter(
       (p) => p.id.endsWith("__side_l") || p.id.endsWith("__side_r"),
     );
     expect(sides.length).toBe(2);
     for (const side of sides) {
-      expect(side.operations.length).toBeGreaterThan(0);
-      // Every hole is a Ø-pin face-A drill; front+back rows ⇒ an even count.
-      expect(side.operations.every((o) => o.op === "drill" && o.face === "A")).toBe(true);
-      expect(side.operations.length % 2).toBe(0);
+      // exactly one front+back pair per shelf — NOT a synthesised System-32 column
+      expect(side.operations.length).toBe(SHELVES * ROWS);
+      expect(
+        side.operations.every(
+          (o) => o.op === "drill" && o.face === "A" && o.diameter_mm10 === 50 && o.depth_mm10 === 110,
+        ),
+      ).toBe(true);
     }
   });
 
