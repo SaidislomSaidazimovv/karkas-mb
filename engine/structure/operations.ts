@@ -506,6 +506,73 @@ export function reattachInstance(model: StructuralModel, instanceId: InstanceId)
   });
 }
 
+/** Kinds the UI's "Add" verb can place. First slice supports `"shelf"`. */
+export type AddKind = "shelf" | "rail" | "divider" | "drawer" | "door";
+
+/**
+ * Add a content instance to a leaf section and return the NEW model. First slice:
+ * a shelf (`internal_shelf`) — reusing the block's shelf Component (or creating one),
+ * then redistributing every shelf in that section to evenly-spaced heights so the result
+ * looks right. No-op for kinds not yet supported. Throws on unknown / non-leaf section
+ * (same error policy as divideSection).
+ */
+export function addInstance(
+  model: StructuralModel,
+  sectionId: SectionId,
+  kind: AddKind = "shelf",
+): StructuralModel {
+  if (kind !== "shelf") return model; // other kinds land in later slices
+
+  const located = findSection(model, sectionId);
+  if (!located) throw new Error("ADD_INSTANCE_SECTION_NOT_FOUND");
+  const { block, section } = located;
+  if (section.children.length > 0) throw new Error("ADD_INSTANCE_SECTION_NOT_LEAF");
+
+  const roleOf = (inst: Instance) =>
+    block.components.find((c) => c.id === inst.componentId)?.role ?? null;
+
+  // find or create the shelf component (role internal_shelf)
+  let shelf = block.components.find((c) => c.role === "internal_shelf") ?? null;
+  let components = block.components;
+  if (!shelf) {
+    shelf = { id: `${block.id}__cmp_shelf`, name: "Полка", partIds: [], role: "internal_shelf" };
+    components = [...block.components, shelf];
+  }
+
+  const newId = `shelf_${block.instances.length + 1}`;
+
+  // every shelf now living in this section, in order, gets an evenly-spaced height
+  const order = [
+    ...block.instances
+      .filter((i) => i.sectionId === sectionId && roleOf(i) === "internal_shelf")
+      .map((i) => i.id),
+    newId,
+  ];
+  const n = order.length;
+  const yAt = (idx: number) => Math.round(section.box.y + (section.box.h * (idx + 1)) / (n + 1));
+
+  const instances: Instance[] = block.instances.map((i) => {
+    const idx = order.indexOf(i.id);
+    return idx === -1 ? i : { ...i, anchor: { ...i.anchor, y: yAt(idx) } };
+  });
+  instances.push({
+    id: newId,
+    componentId: shelf.id,
+    sectionId,
+    anchor: { x: section.box.x, y: yAt(n - 1), z: section.box.z },
+    link: "linked",
+  });
+
+  const newSection: Section = { ...section, instanceIds: [...section.instanceIds, newId] };
+  const zones = block.zones.map((z) => {
+    const root = replaceSection(z.root, sectionId, newSection);
+    return root === z.root ? z : { ...z, root };
+  });
+
+  const newBlock: Block = { ...block, components, instances, zones };
+  return { ...model, blocks: model.blocks.map((b) => (b.id === block.id ? newBlock : b)) };
+}
+
 /** Apply `transform` to one instance (by id), rebuilding only the spine to it.
  *  Returns the same model reference when the transform is a no-op. Throws if the
  *  instance — or its component — cannot be found. */

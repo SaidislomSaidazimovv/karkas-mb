@@ -13,6 +13,7 @@
 import { create } from "zustand";
 
 import {
+  addInstance,
   buildDemoModel,
   countExceptions,
   detachInstance,
@@ -221,8 +222,16 @@ export const useApp = create<AppState>((set, get) => ({
   resize(_partId, _axis, _value_mm10) {
     /* TODO: no engine resize op yet — a resize maps to a section/line edit (S3-E1 follow-up) */
   },
-  addPart(_sectionId, _kind) {
-    /* TODO: no engine add op yet */
+  addPart(sectionId, kind) {
+    const m = get().model;
+    if (!m) return;
+    try {
+      const next = addInstance(m, sectionId, kind);
+      if (next === m) return; // unsupported kind → no-op
+      set({ model: next, selection: NO_SELECTION, ...derive(next) });
+    } catch {
+      /* ignore (e.g. non-leaf section) */
+    }
   },
   detach(instanceId) {
     const m = get().model;

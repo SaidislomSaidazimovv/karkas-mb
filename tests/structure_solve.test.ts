@@ -20,6 +20,7 @@ import {
   type StructuralModel,
   type Zone,
 } from "../engine/index.js";
+import { addInstance } from "../engine/structure/operations.js";
 
 const W = 6000; // 600 mm width
 const H = 7200; // 720 mm height
@@ -149,5 +150,27 @@ describe("S3-E1 solveLayout — positioned panels for the 3D viewport", () => {
         expect(Number.isInteger(n)).toBe(true);
       }
     }
+  });
+});
+
+describe("S3 addInstance — add a shelf to a section", () => {
+  it("adds a shelf; the cabinet gains one panel; positions stay integer", () => {
+    const model = buildDemoModel();
+    const before = solveStructure(model).length;
+    const next = addInstance(model, "sec_left", "shelf");
+    expect(next).not.toBe(model);
+    expect(solveStructure(next)).toHaveLength(before + 1);
+    for (const p of solveLayout(next)) {
+      expect(Number.isInteger(p.y_mm10)).toBe(true);
+    }
+  });
+
+  it("no-ops for kinds not yet supported", () => {
+    const model = buildDemoModel();
+    expect(addInstance(model, "sec_left", "door")).toBe(model);
+  });
+
+  it("throws on an unknown section", () => {
+    expect(() => addInstance(buildDemoModel(), "nope", "shelf")).toThrow();
   });
 });

@@ -17,6 +17,7 @@ export {
   selectByTap,
   detachInstance,
   reattachInstance,
+  addInstance,
 } from "./_engine/structure/operations";
 export { countExceptions, leafSections } from "./_engine/contracts/structure";
 
