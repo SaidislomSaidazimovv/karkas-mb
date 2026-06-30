@@ -59,6 +59,7 @@ export type DivideOpts = {
   axis: "x" | "y" | "z";
   rule: "manual" | "ratio" | "equal" | "fixed_mm";
   at_mm10?: number;
+  count?: number; // for rule "equal" — number of equal parts (default 2)
 };
 export type AddKind = "shelf" | "rail" | "divider" | "drawer" | "door";
 
@@ -131,7 +132,7 @@ function toDivideMode(opts: DivideOpts): DivideMode {
     case "ratio":
       return { kind: "ratio", axis, ratio: [1, 1] };
     case "equal":
-      return { kind: "equal", axis, count: 2 };
+      return { kind: "equal", axis, count: Math.max(2, Math.round(opts.count ?? 2)) };
     case "fixed_mm":
       return { kind: "fixed", axis, step_mm10: opts.at_mm10 ?? 3000 };
     default: // "manual"
