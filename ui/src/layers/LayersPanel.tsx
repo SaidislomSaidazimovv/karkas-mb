@@ -69,6 +69,9 @@ export function LayersPanel() {
   const model = useApp((s) => s.model);
   const selection = useApp((s) => s.selection);
   const tapPart = useApp((s) => s.tapPart);
+  const hiddenIds = useApp((s) => s.hiddenIds);
+  const toggleHidden = useApp((s) => s.toggleHidden);
+  const showAll = useApp((s) => s.showAll);
   const rows = model ? modelToRows(model) : [];
 
   const isSelected = (r: Row) =>
@@ -78,14 +81,27 @@ export function LayersPanel() {
     <View style={styles.panel}>
       <View style={styles.head}>
         <Text style={styles.title}>Слои · структура</Text>
-        <Icon name="layers" size={18} color={C.ink2} />
+        {hiddenIds.length > 0 ? (
+          <Pressable hitSlop={6} onPress={showAll}>
+            <Text style={styles.showAll}>Показать все</Text>
+          </Pressable>
+        ) : (
+          <Icon name="layers" size={18} color={C.ink2} />
+        )}
       </View>
       {rows.length === 0 ? (
         <Text style={styles.empty}>Нет деталей</Text>
       ) : (
         <View style={styles.tree}>
           {rows.map((r, i) => (
-            <TreeRow key={i} row={r} selected={isSelected(r)} onSelect={() => tapPart(r.partId)} />
+            <TreeRow
+              key={i}
+              row={r}
+              selected={isSelected(r)}
+              hidden={hiddenIds.includes(r.partId)}
+              onSelect={() => tapPart(r.partId)}
+              onToggleHidden={() => toggleHidden(r.partId)}
+            />
           ))}
         </View>
       )}
@@ -93,19 +109,23 @@ export function LayersPanel() {
   );
 }
 
-function TreeRow({ row, selected, onSelect }: { row: Row; selected: boolean; onSelect: () => void }) {
+function TreeRow({
+  row, selected, hidden, onSelect, onToggleHidden,
+}: {
+  row: Row; selected: boolean; hidden: boolean; onSelect: () => void; onToggleHidden: () => void;
+}) {
   return (
     <Pressable style={[styles.row, row.indent && styles.indent, selected && styles.rowOn]} onPress={onSelect}>
-      <View style={[styles.dot, { backgroundColor: row.dot }]} />
-      <Text style={[styles.name, selected && styles.nameOn]}>{row.name}</Text>
+      <View style={[styles.dot, { backgroundColor: row.dot }, hidden && styles.faded]} />
+      <Text style={[styles.name, selected && styles.nameOn, hidden && styles.nameHidden]}>{row.name}</Text>
       {row.badges?.map((b, i) => (
-        <View key={i} style={styles.badge}>
+        <View key={i} style={[styles.badge, hidden && styles.faded]}>
           <Icon name={b.icon} size={13} color={b.color} />
         </View>
       ))}
-      {row.count ? <Text style={styles.count}>×{row.count}</Text> : null}
-      <Pressable style={styles.eye} hitSlop={6} onPress={() => { /* visual; 3D-hide wires to store.hiddenIds (gated) */ }}>
-        <Icon name="eye" size={14} color={C.ink2} />
+      {row.count ? <Text style={[styles.count, hidden && styles.faded]}>×{row.count}</Text> : null}
+      <Pressable style={styles.eye} hitSlop={6} onPress={onToggleHidden}>
+        <Icon name="eye" size={14} color={hidden ? C.disabled : C.ink2} />
       </Pressable>
     </Pressable>
   );
@@ -124,6 +144,7 @@ const styles = StyleSheet.create({
   },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   title: { fontFamily: FONT, fontSize: 17, fontWeight: "800", color: C.ink },
+  showAll: { fontFamily: FONT, fontSize: 13, fontWeight: "700", color: C.selLine },
   empty: { fontFamily: FONT, fontSize: 13, color: C.ink2, paddingVertical: 12, textAlign: "center" },
   tree: { marginTop: 2 },
   row: {
@@ -135,6 +156,8 @@ const styles = StyleSheet.create({
   dot: { width: 11, height: 11, borderRadius: 999 },
   name: { fontFamily: FONT, fontSize: 14.5, fontWeight: "600", color: C.ink, flex: 1 },
   nameOn: { color: C.selLine, fontWeight: "700" },
+  nameHidden: { color: C.disabled },
+  faded: { opacity: 0.4 },
   badge: { marginLeft: 2 },
   count: { fontFamily: FONT, fontSize: 11, color: C.ink2, marginLeft: 4 },
   eye: { marginLeft: 8, padding: 2 },

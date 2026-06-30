@@ -24,9 +24,12 @@ export function TopBar({
   onMenu?: () => void;
 }) {
   const price = useApp((s) => s.price_sum);
+  const toggleLayers = useApp((s) => s.toggleLayers);
   const openExport = usePanelUi((s) => s.openExport);
   // «Дальше»/«Готово» → CNC-export sheet, unless the host wires its own advance handler
   const advance = onAdvance ?? openExport;
+  // ☰ → open/close the Zone 5 layers panel, unless the host wires its own menu handler
+  const menu = onMenu ?? toggleLayers;
   return (
     <View>
       <View style={styles.bar}>
@@ -49,7 +52,7 @@ export function TopBar({
           <Text style={[styles.pillTxt, !canAdvance && styles.pillTxtOff]}>Дальше</Text>
         </Pressable>
 
-        <Pressable style={styles.hamb} onPress={onMenu} hitSlop={6}>
+        <Pressable style={styles.hamb} onPress={menu} hitSlop={6}>
           <Icon name="menu" size={22} color={C.ink} />
         </Pressable>
       </View>
