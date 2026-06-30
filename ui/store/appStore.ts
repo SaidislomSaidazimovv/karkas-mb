@@ -20,6 +20,7 @@ import {
   moveLine as engineMoveLine,
   reattachInstance,
   selectByTap,
+  solveLayout,
   solvePreview,
   solveStructure,
 } from "../engineBridge";
@@ -29,6 +30,7 @@ import type {
   EngineSelection,
   InstanceId,
   LineId,
+  PanelPlacement,
   Part,
   PartId,
   PreviewResult,
@@ -106,11 +108,19 @@ function estimatePrice(parts: readonly Part[]): number {
   return Math.round(m2 * 800_000); // ~800k сум per m² of finished board
 }
 
-/** Solve a model into the render preview + price (one place, so every edit stays in sync). */
-function derive(model: StructuralModel): { preview: PreviewResult; price_sum: number } {
+/** Solve a model into render preview + positioned scene + price (one place, in sync). */
+function derive(model: StructuralModel): {
+  preview: PreviewResult;
+  scene: readonly PanelPlacement[];
+  price_sum: number;
+} {
   const parts = solveStructure(model);
   const project: Project = { id: model.id, name: model.name, parts };
-  return { preview: solvePreview(project), price_sum: estimatePrice(parts) };
+  return {
+    preview: solvePreview(project),
+    scene: solveLayout(model), // positioned panels — the viewport renders this
+    price_sum: estimatePrice(parts),
+  };
 }
 
 /** Map the UI's DivideOpts to the engine's DivideMode (sensible defaults when unspecified). */
@@ -145,6 +155,7 @@ export interface AppState {
   view: ViewLens[];
   price_sum: number;
   preview: PreviewResult | null;
+  scene: readonly PanelPlacement[]; // positioned panels for the 3D viewport (T1 renders this)
 
   tapPart(partId: PartId): void;
   clearSelection(): void;

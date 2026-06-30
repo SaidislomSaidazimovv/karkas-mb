@@ -8,6 +8,7 @@
 
 // ---- runtime ----
 export { solveStructure, BOARD_MM10 } from "./_engine/structure/solve";
+export { solveLayout } from "./_engine/structure/layout";
 export { buildDemoModel } from "./_engine/structure/demoModel";
 export { solvePreview, solveFull } from "./_engine/index";
 export {
@@ -40,6 +41,8 @@ export type {
 } from "./_engine/contracts/structure";
 
 export type { Part, PartId, PreviewResult, Project } from "./_engine/contracts/types";
+
+export type { PanelPlacement } from "./_engine/structure/layout";
 
 export type {
   Selection as EngineSelection,

@@ -25,6 +25,9 @@ export * from "./contracts/structure.js";
 export { solveStructure, BOARD_MM10 } from "./structure/solve.js";
 // A realistic starter cabinet the UI initialises `model` with (S3-E1).
 export { buildDemoModel } from "./structure/demoModel.js";
+// Assembly layout (positioned panels) for the 3D viewport (S3-E1).
+export { solveLayout } from "./structure/layout.js";
+export type { PanelPlacement } from "./structure/layout.js";
 export { exportSWJ008 } from "./postprocessors/swj008.js";
 export { parseSWJ008, parseSWJ008Document } from "./postprocessors/swj008Parse.js";
 export { canonicalizeParts, canonicalizePart } from "./core/canonical.js";

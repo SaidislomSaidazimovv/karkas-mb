@@ -9,6 +9,7 @@ import {
   BOARD_MM10,
   buildDemoModel,
   solveFull,
+  solveLayout,
   solvePreview,
   solveStructure,
   type Block,
@@ -123,6 +124,30 @@ describe("S3-E1 buildDemoModel — starter cabinet renders end-to-end", () => {
     for (const p of preview.parts) {
       expect(p.bbox.w).toBeGreaterThan(0);
       expect(p.bbox.h).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("S3-E1 solveLayout — positioned panels for the 3D viewport", () => {
+  it("places the same 8 panels with assembly positions, ids matching solveStructure", () => {
+    const model = buildDemoModel();
+    const layout = solveLayout(model);
+    const parts = solveStructure(model);
+    expect(layout).toHaveLength(parts.length);
+    // ids match 1:1 (selection → placement)
+    expect(new Set(layout.map((p) => p.id))).toEqual(new Set(parts.map((p) => p.id)));
+    // sides sit at opposite x edges of the 600mm-wide cabinet
+    const left = layout.find((p) => p.id.endsWith("side_l"))!;
+    const right = layout.find((p) => p.id.endsWith("side_r"))!;
+    expect(left.x_mm10).toBe(0);
+    expect(right.x_mm10).toBe(6000 - BOARD_MM10);
+    // every panel has positive size and integer coordinates
+    for (const p of layout) {
+      expect(p.w_mm10).toBeGreaterThan(0);
+      expect(p.h_mm10).toBeGreaterThan(0);
+      for (const n of [p.x_mm10, p.y_mm10, p.z_mm10, p.w_mm10, p.h_mm10, p.d_mm10]) {
+        expect(Number.isInteger(n)).toBe(true);
+      }
     }
   });
 });
