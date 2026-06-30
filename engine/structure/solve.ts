@@ -34,15 +34,23 @@ import {
 export const BOARD_MM10: mm10 = 160;
 
 /**
- * Edge-band tape thickness on a banded edge — 1.0 mm, GROUNDED against the factory file
- * tests/golden/xml/POLKA-1_7_1.XML (`<Edge Face="3" Thickness="1.000" />`). S3-E5 / L8:
- * a banded edge must be EMITTED in the cut output, not implied.
+ * Edge-band tape thickness on a banded (visible) edge — 1.0 mm. GROUNDED: factory golden files
+ * show banded edges at Thickness="1.000" (e.g. POLKA-1_7_1.XML), and the field research
+ * (Researches/-R7F_3_factory_answers.md, DB/-rF_4_market_reframe.md) confirms "kromka 1mm is the
+ * 99% default" (visible 1.0 · hidden 0.4 · premium 2.0) — superseding the older 0.4/2.0 in
+ * 06_CONVENTIONS §5. S3-E5 / L8: a banded edge must be EMITTED in the cut output, not implied.
  */
 export const EDGE_BAND_MM10: mm10 = 10;
 
 const GRAIN: Grain = "L";
 
-function panel(id: string, name: string, length_mm10: mm10, width_mm10: mm10): Part {
+function panel(
+  id: string,
+  name: string,
+  length_mm10: mm10,
+  width_mm10: mm10,
+  edges: Part["edges"] = [0, 0, 0, 0],
+): Part {
   return {
     id,
     name,
@@ -50,28 +58,38 @@ function panel(id: string, name: string, length_mm10: mm10, width_mm10: mm10): P
     width_mm10,
     thickness_mm10: BOARD_MM10,
     grain: GRAIN,
-    edges: [0, 0, 0, 0],
+    edges,
     operations: [],
   };
 }
+
+/**
+ * The FRONT edge banded at 1.0mm. Front = Face 1 = edges[0] = the Y=Width (depth-front) edge.
+ * SWJ008 face map (GROUNDED from factory edge-drill coordinates: Face1 drills at Y=Width, e.g.
+ * POL_3_1.XML Face1 @ Y=503=Width): Face1=top(Y-max) · Face2=bottom(Y=0) · Face3=right(X-max) ·
+ * Face4=left(X=0). Every solved carcass/shelf/divider here has Width = depth, so its room-facing
+ * front edge is Face 1. (POLKA-1 bands its front edge too — its Face 3 only because that panel is
+ * drawn transposed, depth = X.) Fresh array per call to avoid shared references.
+ */
+const frontBand = (): Part["edges"] => [EDGE_BAND_MM10, 0, 0, 0];
 
 /** Carcass box: two sides (full height × depth) + top + bottom (inner width × depth). */
 function carcassParts(block: Block): Part[] {
   const { w, h, d } = block.box;
   const innerW = w - 2 * BOARD_MM10;
   return [
-    panel(`${block.id}__side_l`, "Бок левый", h, d),
-    panel(`${block.id}__side_r`, "Бок правый", h, d),
-    panel(`${block.id}__top`, "Верх", innerW, d),
-    panel(`${block.id}__bottom`, "Низ", innerW, d),
-    panel(`${block.id}__back`, "Задняя стенка", w, h),
+    panel(`${block.id}__side_l`, "Бок левый", h, d, frontBand()),
+    panel(`${block.id}__side_r`, "Бок правый", h, d, frontBand()),
+    panel(`${block.id}__top`, "Верх", innerW, d, frontBand()),
+    panel(`${block.id}__bottom`, "Низ", innerW, d, frontBand()),
+    panel(`${block.id}__back`, "Задняя стенка", w, h), // back panel is hidden — not banded
   ];
 }
 
 /** A vertical divider (axis "x") stands between top and bottom, full depth. */
 function dividerPart(block: Block, line: Line): Part {
   const { h, d } = block.box;
-  return panel(`${block.id}__div_${line.id}`, "Перегородка", h - 2 * BOARD_MM10, d);
+  return panel(`${block.id}__div_${line.id}`, "Перегородка", h - 2 * BOARD_MM10, d, frontBand());
 }
 
 function sectionById(block: Block, sectionId: string): Section | null {
@@ -94,14 +112,10 @@ function instancePart(block: Block, inst: Instance): Part | null {
   if (!section || !component) return null;
   // First slice handles shelves; other roles return null until their step.
   if (component.role === "internal_shelf") {
-    const length = section.box.w - 2 * BOARD_MM10; // between the side panels / dividers (X)
+    const length = section.box.w - 2 * BOARD_MM10; // span between sides / dividers (X)
     const width = section.box.d; // depth (Y)
-    const p = panel(`${block.id}__inst_${inst.id}`, component.name, length, width);
-    // S3-E5 edge-banding: a shelf is banded on its FRONT edge (Face 3 = edges[2]). GROUNDED by
-    // POLKA-1_7_1.XML, whose orientation matches this panel (Length = span, Width = depth).
-    // Other roles' front-edge face index isn't grounded yet (no SWJ edge-face convention doc /
-    // matching fixture), so carcass/divider/back stay bare until that lands.
-    return { ...p, edges: [0, 0, EDGE_BAND_MM10, 0] };
+    // Banded on the FRONT edge (Face 1 = edges[0] = the Y=Width depth-front edge) — see frontBand().
+    return panel(`${block.id}__inst_${inst.id}`, component.name, length, width, frontBand());
   }
   return null;
 }
