@@ -20,6 +20,7 @@ import { C, FONT } from "../../theme";
 import { usePanelUi } from "./panelUi";
 import { AddSheet } from "./AddSheet";
 import { ExportSheet } from "../chrome/ExportSheet";
+import { MenuSheet } from "../chrome/MenuSheet";
 import {
   Grab, SheetHeader, Badge, NumberStepper, Segment, Toggle, MenuRow, ListRow,
   EdgeKromka, NEXT_BAND, type EdgeBand, type EdgeKey, sheetBase,
@@ -49,6 +50,7 @@ export function SelectionSheet() {
   const detach = useApp((s) => s.detach);
   const addOpen = usePanelUi((s) => s.addOpen);
   const exportOpen = usePanelUi((s) => s.exportOpen);
+  const menuOpen = usePanelUi((s) => s.menuOpen);
 
   const partId = selection.partIds[0];
   const placement: PanelPlacement | undefined = scene.find((p) => p.id === partId);
@@ -76,7 +78,8 @@ export function SelectionSheet() {
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<(() => void) | null>(null);
 
-  // «Готово»/CNC-export and «Добавить» drill take over the sheet zone (both selection-independent)
+  // ☰ menu, «Готово»/CNC-export and «Добавить» drill take over the sheet zone (selection-independent)
+  if (menuOpen) return <MenuSheet />;
   if (exportOpen) return <ExportSheet />;
   if (addOpen) return <AddSheet />;
   if (selection.kind === "none") return null;

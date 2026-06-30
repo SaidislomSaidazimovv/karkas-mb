@@ -24,12 +24,13 @@ export function TopBar({
   onMenu?: () => void;
 }) {
   const price = useApp((s) => s.price_sum);
-  const toggleLayers = useApp((s) => s.toggleLayers);
   const openExport = usePanelUi((s) => s.openExport);
+  const openMenu = usePanelUi((s) => s.openMenu);
   // «Дальше»/«Готово» → CNC-export sheet, unless the host wires its own advance handler
   const advance = onAdvance ?? openExport;
-  // ☰ → open/close the Zone 5 layers panel, unless the host wires its own menu handler
-  const menu = onMenu ?? toggleLayers;
+  // ☰ → app menu (Слои · Экспорт …). v3: the hamburger is a MENU, distinct from the
+  // separate #i-layers icon — so it does NOT toggle the layers panel directly.
+  const menu = onMenu ?? openMenu;
   return (
     <View>
       <View style={styles.bar}>
