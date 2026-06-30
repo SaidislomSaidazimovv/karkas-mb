@@ -13,7 +13,9 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
 import { C, FONT, R } from "../../theme";
 import { CanvasScene } from "./CanvasScene";
+import { DivideSheet } from "./DivideSheet";
 import { DEMO_PREVIEW, layoutToScene, previewToScene, type Orbit } from "./cabinet";
+import type { DivideOpts } from "../../store/appStore";
 
 const AZ_STEP = 0.05; // rad per tick — yaw
 const POL_STEP = 0.04; // rad per tick — pitch
@@ -37,6 +39,7 @@ export function CanvasView() {
   );
 
   const [orbit, setOrbit] = useState<Orbit>([0.5, 0.6]);
+  const [divideOpen, setDivideOpen] = useState(false);
 
   const hasSel = selection.kind !== "none";
   const selPart = selection.partIds[0];
@@ -49,15 +52,23 @@ export function CanvasView() {
     // engine resize op lands in an S3-E1 follow-up, then this is a live edit.
     resize(selBoard.id, "z", Math.round(selBoard.size[2] * 10_000) + 100);
   };
-  const onDivide = () => {
-    // Real split now: selection carries the leaf sectionId → engine divide → scene redraws.
-    if (!selection.sectionId) return;
-    divide(selection.sectionId, { axis: "x", rule: "manual" });
+  const applyDivide = (opts: DivideOpts) => {
+    // Real split: selection carries the leaf sectionId → engine divide → model/scene re-derive.
+    if (selection.sectionId) divide(selection.sectionId, opts);
+    setDivideOpen(false);
   };
+  const onOrbitDelta = (dPol: number, dAz: number) =>
+    setOrbit(([p, a]) => [clamp(p + dPol, POL_MIN, POL_MAX), a + dAz]);
 
   return (
     <View style={styles.canvas}>
-      <CanvasScene scene={scene} selectedIds={selection.partIds} onTapPart={tapPart} orbit={orbit} />
+      <CanvasScene
+        scene={scene}
+        selectedIds={selection.partIds}
+        onTapPart={tapPart}
+        orbit={orbit}
+        onOrbitDelta={onOrbitDelta}
+      />
 
       {/* Overlay layer — taps pass through to the 3D except on the controls below. */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -87,10 +98,12 @@ export function CanvasView() {
         {/* Divide gesture (Build mode, real split needs a leaf section). */}
         {hasSel && mode === "build" && selection.sectionId && (
           <>
-            <View style={styles.divGuide} pointerEvents="none" />
-            <Pressable style={styles.divBtn} onPress={onDivide}>
-              <Text style={styles.divBtnT}>Разделить</Text>
-            </Pressable>
+            {divideOpen && <View style={styles.divGuide} pointerEvents="none" />}
+            {!divideOpen && (
+              <Pressable style={styles.divBtn} onPress={() => setDivideOpen(true)}>
+                <Text style={styles.divBtnT}>Разделить</Text>
+              </Pressable>
+            )}
           </>
         )}
 
@@ -132,6 +145,11 @@ export function CanvasView() {
             <HudBtn glyph="↷" onPress={() => {}} dim />
           </View>
         </View>
+
+        {/* Divide modes sheet — opens over the HUD when «Разделить» is tapped. */}
+        {divideOpen && hasSel && mode === "build" && selection.sectionId && (
+          <DivideSheet onApply={applyDivide} onClose={() => setDivideOpen(false)} />
+        )}
       </View>
     </View>
   );

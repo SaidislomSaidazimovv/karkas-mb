@@ -38,6 +38,8 @@ export interface CanvasSceneProps {
   selectedIds: readonly string[];
   onTapPart: (id: string) => void;
   orbit: Orbit;
+  /** Drag on empty space → relative camera orbit (radians). Web only; native ignores it. */
+  onOrbitDelta?: (dPol: number, dAz: number) => void;
 }
 
 /** mm10 (tenths of a millimetre) → metres. 16mm board = 160 mm10 = 0.016 m. */
