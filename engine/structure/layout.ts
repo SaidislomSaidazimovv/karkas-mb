@@ -55,6 +55,7 @@ function carcass(block: Block): PanelPlacement[] {
     place(`${block.id}__side_r`, "Бок правый", x + w - B, y, z, B, h, d),
     place(`${block.id}__top`, "Верх", x + B, y + h - B, z, w - 2 * B, B, d),
     place(`${block.id}__bottom`, "Низ", x + B, y, z, w - 2 * B, B, d),
+    place(`${block.id}__back`, "Задняя стенка", x, y, z + d - B, w, h, B),
   ];
 }
 

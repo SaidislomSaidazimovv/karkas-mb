@@ -57,6 +57,7 @@ function carcassParts(block: Block): Part[] {
     panel(`${block.id}__side_r`, "Бок правый", h, d),
     panel(`${block.id}__top`, "Верх", innerW, d),
     panel(`${block.id}__bottom`, "Низ", innerW, d),
+    panel(`${block.id}__back`, "Задняя стенка", w, h),
   ];
 }
 

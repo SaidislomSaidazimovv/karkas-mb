@@ -68,9 +68,9 @@ function buildModel(opts: { divider?: boolean }): StructuralModel {
 }
 
 describe("S3-E1 solveStructure — structural model → Part[]", () => {
-  it("generates carcass (4) + shelf (1), dimensions derived from geometry", () => {
+  it("generates carcass (5: sides+top+bottom+back) + shelf (1), dimensions from geometry", () => {
     const parts = solveStructure(buildModel({}));
-    expect(parts).toHaveLength(5);
+    expect(parts).toHaveLength(6);
 
     const by = (suffix: string) => parts.find((p) => p.id.endsWith(suffix))!;
     // Sides: full height × full depth.
@@ -89,7 +89,7 @@ describe("S3-E1 solveStructure — structural model → Part[]", () => {
 
   it("adds one divider panel per Line", () => {
     const parts = solveStructure(buildModel({ divider: true }));
-    expect(parts).toHaveLength(6);
+    expect(parts).toHaveLength(7);
     const div = parts.find((p) => p.id.includes("div_"))!;
     expect(div).toMatchObject({ length_mm10: H - 2 * BOARD, width_mm10: D, thickness_mm10: BOARD });
   });
@@ -110,9 +110,9 @@ describe("S3-E1 solveStructure — structural model → Part[]", () => {
 });
 
 describe("S3-E1 buildDemoModel — starter cabinet renders end-to-end", () => {
-  it("solves to carcass(4) + divider(1) + shelves(3) = 8 parts", () => {
+  it("solves to carcass(5) + divider(1) + shelves(3) = 9 parts", () => {
     const parts = solveStructure(buildDemoModel());
-    expect(parts).toHaveLength(8);
+    expect(parts).toHaveLength(9);
     expect(parts.filter((p) => p.id.includes("div_"))).toHaveLength(1);
     expect(parts.filter((p) => p.id.includes("__inst_"))).toHaveLength(3);
   });
