@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp, type Mode } from "../../store/appStore";
+import { usePanelUi } from "../sheets/panelUi";
 import { C, FONT, R } from "../../theme";
 import { Icon, type IconName } from "../chrome/Icon";
 
@@ -42,6 +43,7 @@ const SLOTS: Record<Mode, Slot[]> = {
 
 export function BottomToolbar() {
   const mode = useApp((s) => s.mode);
+  const openAdd = usePanelUi((s) => s.openAdd);
   const slots = SLOTS[mode];
   // Active verb is local toolbar state (the selected verb within a mode); the first
   // non-reserved slot is the default. Switching mode resets it via the keyed default below.
@@ -59,7 +61,10 @@ export function BottomToolbar() {
             key={slot.key}
             style={styles.slot}
             disabled={slot.reserved}
-            onPress={() => setActiveByMode((m) => ({ ...m, [mode]: slot.key }))}
+            onPress={() => {
+              setActiveByMode((m) => ({ ...m, [mode]: slot.key }));
+              if (mode === "build" && slot.key === "add") openAdd(); // «Добавить» → drill-sheet
+            }}
           >
             <View style={[styles.ic, on && styles.icOn, slot.reserved && styles.icReserved]}>
               <Icon name={slot.icon} size={20} color={on ? "#FFFFFF" : slot.reserved ? C.disabled : C.ink} />

@@ -4,10 +4,10 @@
 // tree. Badge vocabulary (v3 §4): plain=unique part(group-of-1) · 🔗=linked group(2+) ·
 // ✂=detached(exception) · ●=material-role colour dot. design: construction-v3-preview.html §6.
 //
-// A Component placed once → plain unique row; placed 2+ (linked) → one «🔗 ×N» group row;
-// each detached instance (link==="detached") → its own ✂ row. The demo cabinet has one type
-// «Полка» ×3 linked, so this renders «Полка ×3 🔗» from real data.
-import { View, Text, StyleSheet } from "react-native";
+// S3-T2C: rows are tappable → select that part (node → `${blockId}__inst_${id}` → store.tapPart);
+// the selected row highlights (group row lights when its type is selected). The eye toggle is a
+// visual affordance for now — wires to 3D-hide when store.hiddenIds lands (P, gated).
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
 import type { PanelRole, StructuralModel } from "../../engineBridge";
 import { C, FONT, R } from "../../theme";
@@ -16,6 +16,9 @@ import { Icon, type IconName } from "../chrome/Icon";
 type Row = {
   name: string;
   dot: string; // material-role colour (●)
+  partId: string; // the leaf part this row taps to select
+  componentId: string; // for group-highlight (whole type selected)
+  group: boolean; // true = linked group(2+) row → highlight by componentId
   indent?: boolean;
   badges?: { icon: IconName; color: string }[];
   count?: number; // ×N for a linked group
@@ -30,6 +33,7 @@ const ROLE_DOT: Record<PanelRole, string> = {
   internal_shelf: "#C9A273",
 };
 const roleDot = (role: PanelRole | null) => (role ? ROLE_DOT[role] : "#9AA3AD");
+const partIdOf = (blockId: string, instanceId: string) => `${blockId}__inst_${instanceId}`;
 
 /** Component × instance → tree rows, applying the v3 §4 badge rules. */
 function modelToRows(model: StructuralModel): Row[] {
@@ -43,12 +47,18 @@ function modelToRows(model: StructuralModel): Row[] {
       const dot = roleDot(comp.role);
 
       if (linked.length >= 2) {
-        rows.push({ name: comp.name, dot, indent: true, count: linked.length, badges: [{ icon: "link", color: C.selLine }] });
+        rows.push({
+          name: comp.name, dot, partId: partIdOf(block.id, linked[0]!.id), componentId: comp.id,
+          group: true, indent: true, count: linked.length, badges: [{ icon: "link", color: C.selLine }],
+        });
       } else if (linked.length === 1) {
-        rows.push({ name: comp.name, dot }); // unique → plain, no badge
+        rows.push({ name: comp.name, dot, partId: partIdOf(block.id, linked[0]!.id), componentId: comp.id, group: false });
       }
-      for (const _d of detached) {
-        rows.push({ name: comp.name, dot: C.selPink, indent: true, badges: [{ icon: "cut", color: "#D4392F" }] });
+      for (const d of detached) {
+        rows.push({
+          name: comp.name, dot: C.selPink, partId: partIdOf(block.id, d.id), componentId: comp.id,
+          group: false, indent: true, badges: [{ icon: "cut", color: "#D4392F" }],
+        });
       }
     }
   }
@@ -57,7 +67,13 @@ function modelToRows(model: StructuralModel): Row[] {
 
 export function LayersPanel() {
   const model = useApp((s) => s.model);
+  const selection = useApp((s) => s.selection);
+  const tapPart = useApp((s) => s.tapPart);
   const rows = model ? modelToRows(model) : [];
+
+  const isSelected = (r: Row) =>
+    r.group ? selection.componentId === r.componentId : selection.partIds.includes(r.partId);
+
   return (
     <View style={styles.panel}>
       <View style={styles.head}>
@@ -69,7 +85,7 @@ export function LayersPanel() {
       ) : (
         <View style={styles.tree}>
           {rows.map((r, i) => (
-            <TreeRow key={i} row={r} />
+            <TreeRow key={i} row={r} selected={isSelected(r)} onSelect={() => tapPart(r.partId)} />
           ))}
         </View>
       )}
@@ -77,21 +93,21 @@ export function LayersPanel() {
   );
 }
 
-function TreeRow({ row }: { row: Row }) {
+function TreeRow({ row, selected, onSelect }: { row: Row; selected: boolean; onSelect: () => void }) {
   return (
-    <View style={[styles.row, row.indent && styles.indent]}>
+    <Pressable style={[styles.row, row.indent && styles.indent, selected && styles.rowOn]} onPress={onSelect}>
       <View style={[styles.dot, { backgroundColor: row.dot }]} />
-      <Text style={styles.name}>{row.name}</Text>
+      <Text style={[styles.name, selected && styles.nameOn]}>{row.name}</Text>
       {row.badges?.map((b, i) => (
         <View key={i} style={styles.badge}>
           <Icon name={b.icon} size={13} color={b.color} />
         </View>
       ))}
       {row.count ? <Text style={styles.count}>×{row.count}</Text> : null}
-      <View style={styles.eyes}>
+      <Pressable style={styles.eye} hitSlop={6} onPress={() => { /* visual; 3D-hide wires to store.hiddenIds (gated) */ }}>
         <Icon name="eye" size={14} color={C.ink2} />
-      </View>
-    </View>
+      </Pressable>
+    </Pressable>
   );
 }
 
@@ -110,11 +126,16 @@ const styles = StyleSheet.create({
   title: { fontFamily: FONT, fontSize: 17, fontWeight: "800", color: C.ink },
   empty: { fontFamily: FONT, fontSize: 13, color: C.ink2, paddingVertical: 12, textAlign: "center" },
   tree: { marginTop: 2 },
-  row: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "#F2F1EE" },
+  row: {
+    flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 9, paddingHorizontal: 8,
+    marginHorizontal: -8, borderRadius: 10, borderBottomWidth: 1, borderBottomColor: "#F2F1EE",
+  },
+  rowOn: { backgroundColor: "#EAF0FF", borderBottomColor: "#EAF0FF" },
   indent: { paddingLeft: 18 },
   dot: { width: 11, height: 11, borderRadius: 999 },
   name: { fontFamily: FONT, fontSize: 14.5, fontWeight: "600", color: C.ink, flex: 1 },
+  nameOn: { color: C.selLine, fontWeight: "700" },
   badge: { marginLeft: 2 },
   count: { fontFamily: FONT, fontSize: 11, color: C.ink2, marginLeft: 4 },
-  eyes: { flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 8 },
+  eye: { marginLeft: 8, padding: 2 },
 });

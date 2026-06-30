@@ -17,6 +17,8 @@ import { View, Text, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
 import type { PanelPlacement, StructuralModel } from "../../engineBridge";
 import { C, FONT } from "../../theme";
+import { usePanelUi } from "./panelUi";
+import { AddSheet } from "./AddSheet";
 import {
   Grab, SheetHeader, Badge, NumberStepper, Segment, Toggle, MenuRow, ListRow, sheetBase,
 } from "./controls";
@@ -43,6 +45,7 @@ export function SelectionSheet() {
   const mode = useApp((s) => s.mode);
   const resize = useApp((s) => s.resize);
   const detach = useApp((s) => s.detach);
+  const addOpen = usePanelUi((s) => s.addOpen);
 
   const partId = selection.partIds[0];
   const placement: PanelPlacement | undefined = scene.find((p) => p.id === partId);
@@ -68,6 +71,8 @@ export function SelectionSheet() {
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<(() => void) | null>(null);
 
+  // «Добавить» drill-flow takes over the sheet zone (available with or without a selection)
+  if (addOpen) return <AddSheet />;
   if (selection.kind === "none") return null;
 
   const isGroup = selection.kind === "group" && !selection.isUnique;
