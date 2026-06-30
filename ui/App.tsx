@@ -8,10 +8,13 @@ import { TopBar } from "./src/chrome/TopBar";
 import { Rail } from "./src/rail/Rail";
 import { CanvasView } from "./src/canvas/CanvasView";
 import { SelectionSheet } from "./src/sheets/SelectionSheet";
+import { LayersPanel } from "./src/layers/LayersPanel";
 import { BottomToolbar } from "./src/toolbar/BottomToolbar";
+import { useApp } from "./store/appStore";
 import { C } from "./theme";
 
 export default function App() {
+  const layersOpen = useApp((s) => s.layersOpen);
   return (
     <View style={styles.root}>
       <View style={styles.phone}>
@@ -21,6 +24,7 @@ export default function App() {
           <CanvasView />
         </View>
         <SelectionSheet />
+        {layersOpen && <LayersPanel />}
         <BottomToolbar />
       </View>
       <StatusBar style="dark" />

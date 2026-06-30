@@ -160,11 +160,16 @@ export interface AppState {
   scene: readonly PanelPlacement[]; // positioned panels for the 3D viewport (T1 renders this)
   past: readonly StructuralModel[]; // undo stack (T1 HUD: enabled when past.length > 0)
   future: readonly StructuralModel[]; // redo stack
+  hiddenIds: readonly PartId[]; // parts toggled off in the 3D view (Zone 5 eye) — view-only, NOT export
+  layersOpen: boolean; // Zone 5 layers panel visible?
 
   tapPart(partId: PartId): void;
   clearSelection(): void;
   setMode(mode: Mode): void;
   toggleView(lens: ViewLens): void;
+  toggleHidden(partId: PartId): void;
+  showAll(): void;
+  toggleLayers(): void;
   divide(sectionId: SectionId, opts: DivideOpts): void;
   moveLine(lineId: LineId, delta_mm10: number, scope: Scope): void;
   resize(partId: PartId, axis: "x" | "z", value_mm10: number): void;
@@ -205,6 +210,8 @@ export const useApp = create<AppState>((set, get) => ({
   view: ["geometry"],
   past: [],
   future: [],
+  hiddenIds: [],
+  layersOpen: false,
   ...derive(INITIAL_MODEL),
 
   tapPart(partId) {
@@ -221,6 +228,16 @@ export const useApp = create<AppState>((set, get) => ({
   toggleView(lens) {
     const v = get().view;
     set({ view: v.includes(lens) ? v.filter((l) => l !== lens) : [...v, lens] });
+  },
+  toggleHidden(partId) {
+    const h = get().hiddenIds;
+    set({ hiddenIds: h.includes(partId) ? h.filter((id) => id !== partId) : [...h, partId] });
+  },
+  showAll() {
+    set({ hiddenIds: [] });
+  },
+  toggleLayers() {
+    set({ layersOpen: !get().layersOpen });
   },
 
   // Structural edits — engine op → new model → applyEdit (history + re-derive in one place).
