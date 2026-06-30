@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mebelchi — Конструктор каркаса</title>
+<style>
+/* Mebelchi */
+
+/* ---- DIZAYN TOKENLARI (netlifypictures piksel-namuna, 2026-06-30) ---- */
+:root{
+  /* Ranglar — HAQIQIY (PIL sampling) */
+  --bg:#ffffff;            /* fon (sheet pasti namuna #FFFFFF) */
+  --chrome:#fafafa;        /* och chrome (namuna #FAFAFA/#FCFCFC) */
+  --ink:#1c1c1d;           /* asosiy matn (namuna #1C1C1D/#34373E) */
+  --ink2:#888888;          /* ikkilamchi matn (namuna #888888 — NEYTRAL) */
+  --ink3:#575757;          /* quyuqroq yorliq (namuna #575757) */
+  --line:#dedcd8;          /* kartochka chegarasi (namuna #DEDBD7/#D9D9D8) */
+  --field:#f6f5f2;         /* qidiruv/asbob foni (namuna #F6F5F2) */
+  --ph:#d9d9d8;            /* rasm-joy (namuna #D9D9D8) */
+  --black:#000000;         /* asosiy pill (namuna darkest #000000) */
+  --disabled:#bdbcbc;      /* o'chiq pill (namuna #BDBCBC) */
+  --sel:#7e9be6;           /* TANLASH to'ldirish (namuna avg #7E9BE6) */
+  --sel-line:#2a6cee;      /* tanlash yorqin chizig'i (namuna darkest #2A6CEE) */
+  --sel-pink:#df5b66;      /* material tanlash (qizg'ish, katalog #E01B1B oilasi) */
+  --wall:#9b9b9b;          /* 3D devor kulrang (namuna #9B9B9B) */
+  --warn:#d9822b;          /* ⚠ xavf (bizning qo'shimcha — Part-1'da yo'q) */
+  --ok:#1f8a4c;            /* ✓ tasdiq */
+  --blocker:#d4392f;       /* 🔴 ochiq bloker (engine'da yo'q) */
+  /* Yog'och (realistik karkas — pol namuna #A36B37) */
+  --wood1:#c9a273; --wood2:#b88a52; --wood3:#a4763f;
+  /* O'lcham/shakl */
+  --r-pill:999px; --r-card:15px; --r-sheet:22px; --r-img:10px; --tool:56px;
+  --font:'Inter','Segoe UI',-apple-system,Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#e9e8e6;color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased}
+body{padding:46px 30px 120px}
+
+.board-head{max-width:1180px;margin:0 auto 14px}
+.board-head h1{font-size:30px;font-weight:800;letter-spacing:-.5px}
+.board-head .sub{color:#6b6862;font-size:14.5px;margin-top:7px;line-height:1.55;max-width:820px}
+.board-head .meta{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.tag{font-size:11.5px;font-weight:700;background:#fff;border:1px solid #d8d6d1;color:#46443f;padding:5px 11px;border-radius:999px}
+.tag.key{background:#1c1c1d;color:#fff;border-color:#1c1c1d}
+.tag.real{background:#eef5ef;border-color:#bcd9c2;color:#266b38}
+
+.section{max-width:1180px;margin:54px auto 0}
+.section > h2{font-size:21px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:baseline;gap:11px}
+.section > h2 .n{font-size:13px;font-weight:800;color:#fff;background:#1c1c1d;width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.section > h2 .n.blk{background:var(--blocker)}
+.section > .lead{color:#6b6862;font-size:14px;margin:9px 0 4px;line-height:1.55;max-width:900px}
+
+.row{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start;margin-top:24px}
+.unit{display:flex;flex-direction:column;align-items:center;gap:12px}
+.unit > .cap{font-size:12.5px;font-weight:700;color:#46443f;text-align:center;max-width:300px}
+.unit > .cap small{display:block;font-weight:500;color:#8a8780;font-size:11.5px;margin-top:2px;line-height:1.4}
+
+/* ---- Telefon qurilma (390×844 → 0.769 → 300×649) ---- */
+.device{width:300px;height:649px;background:var(--bg);border-radius:34px;position:relative;overflow:hidden;
+   box-shadow:0 1px 0 #fff inset,0 18px 44px rgba(20,20,20,.20),0 0 0 9px #1b1b1d,0 0 0 11px #2c2c30}
+.device .scale{position:absolute;inset:0;width:390px;height:844px;transform:scale(.769);transform-origin:top left}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+
+.status{height:30px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;font-size:13px;font-weight:700;color:var(--ink)}
+.status .dots{display:flex;gap:5px;align-items:center}
+.status .bat{width:22px;height:11px;border:1.4px solid var(--ink);border-radius:3px;position:relative}
+.status .bat::after{content:"";position:absolute;right:-3px;top:3px;width:2px;height:5px;background:var(--ink);border-radius:0 1px 1px 0}
+.status .bat i{position:absolute;inset:1.4px;width:60%;background:var(--ink);border-radius:1px}
+
+/* ZONE 1 — Top bar */
+.topbar{flex:none;height:62px;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--bg)}
+.ticker{display:flex;align-items:center;gap:6px;margin-right:auto;white-space:nowrap;flex-shrink:0}
+.ticker b{font-size:18px;font-weight:800;letter-spacing:-.3px;color:var(--ink)}
+.ticker .cur{font-size:13px;font-weight:700;color:var(--ink)}
+.ticker svg{width:17px;height:17px;color:var(--ink2)}
+.icirc{width:44px;height:44px;border-radius:999px;border:1.5px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.icirc svg{width:21px;height:21px;color:var(--ink)}
+.pill{height:44px;border-radius:var(--r-pill);background:var(--black);color:#fff;font-weight:800;font-size:15px;display:inline-flex;align-items:center;gap:8px;padding:0 22px;border:none;letter-spacing:-.2px}
+.pill.ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+.pill.disabled{background:var(--disabled);color:#fff}
+.pill.sm{height:38px;font-size:13.5px;padding:0 16px}
+.hamb{width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex:none}
+.hamb svg{width:26px;height:26px;color:var(--ink)}
+.crumb{flex:none;padding:0 18px 6px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);font-weight:600}
+.crumb b{color:var(--ink);font-weight:800}
+.crumb svg{width:13px;height:13px;color:var(--ink2)}
+
+/* ZONE 2 — Mode+View rail */
+.canvas-wrap{flex:1;position:relative;background:linear-gradient(180deg,#fafafa,#f0efec);overflow:hidden;min-height:0}
+.rail{position:absolute;left:12px;top:14px;display:flex;flex-direction:column;gap:9px;z-index:6}
+.rail .seg{background:#fff;border:1px solid var(--line);border-radius:16px;padding:6px;display:flex;flex-direction:column;gap:4px;box-shadow:0 6px 16px rgba(20,20,20,.07)}
+.rbtn{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:var(--ink3);background:transparent;border:none}
+.rbtn svg{width:22px;height:22px}
+.rbtn.on{background:var(--ink);color:#fff}
+.rail .gap{height:42px;border:1.5px dashed var(--line);border-radius:11px;display:flex;align-items:center;justify-content:center;color:#c3c1bb;font-size:9px;font-weight:700}
+
+/* ZONE 4 — Canvas: KARKAS ICHI */
+.cabinet{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.carcass{position:relative;background:linear-gradient(95deg,var(--wood3),var(--wood1) 16%,var(--wood2) 60%,var(--wood3));border-radius:4px;box-shadow:0 24px 40px -14px rgba(60,40,18,.45)}
+.carcass .inside{position:absolute;background:linear-gradient(180deg,#3a2a17,#5a4326 8%,#6f5430 55%,#4f3a20);box-shadow:inset 0 9px 18px rgba(0,0,0,.5),inset 0 -6px 14px rgba(0,0,0,.4)}
+.board{position:absolute;background:linear-gradient(180deg,#d9b585,#c39a63 45%,#a8814b);box-shadow:0 3px 5px rgba(0,0,0,.42),inset 0 1px 0 #ecd2a8;border-radius:1.5px}
+.vboard{position:absolute;background:linear-gradient(95deg,#caa169,#b88a52 50%,#9c7640);box-shadow:3px 0 5px rgba(0,0,0,.4),inset 1px 0 0 #ecd2a8;border-radius:1.5px}
+.rail-bar{position:absolute;height:5px;border-radius:3px;background:linear-gradient(180deg,#e9edf2,#aab2bd 50%,#7d848e);box-shadow:0 2px 4px rgba(0,0,0,.45)}
+.sel-zone{position:absolute;background:rgba(126,155,230,.32);border:2px solid var(--sel-line);border-radius:3px;box-shadow:0 0 0 4px rgba(126,155,230,.18)}
+.sel-zone.pink{background:rgba(223,91,102,.26);border-color:var(--sel-pink);box-shadow:0 0 0 4px rgba(223,91,102,.16)}
+.sel-mid{position:absolute;left:50%;top:8%;bottom:8%;width:2px;background:var(--sel-line);transform:translateX(-50%)}
+
+.handle{position:absolute;width:46px;height:46px;border-radius:999px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(20,20,20,.2);z-index:7}
+.handle svg{width:22px;height:22px;color:var(--ink)}
+.chip{position:absolute;left:64px;top:14px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:9px 12px;box-shadow:0 6px 16px rgba(20,20,20,.09);z-index:6;min-width:150px}
+.chip .t{font-size:13.5px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:6px}
+.chip .t svg{width:14px;height:14px;color:var(--ink2)}
+.chip .s{font-size:11.5px;color:var(--ink2);margin-top:2px}
+.chip .d{font-size:11.5px;color:var(--ink2);margin-top:1px}
+
+.hud{position:absolute;left:0;right:0;bottom:14px;height:96px;z-index:6;pointer-events:none}
+.hud .left{position:absolute;left:14px;bottom:0;display:flex;gap:9px}
+.hud .right{position:absolute;right:14px;bottom:0;display:flex;gap:9px}
+.hud .joy{position:absolute;left:50%;bottom:-4px;transform:translateX(-50%);width:104px;height:104px;border-radius:999px;background:radial-gradient(circle at 50% 42%,rgba(255,255,255,.92),rgba(236,234,230,.8));border:1px solid rgba(180,180,178,.5);box-shadow:0 10px 24px rgba(40,40,40,.2);display:flex;align-items:center;justify-content:center}
+.hud .joy .knob{width:38px;height:38px;border-radius:999px;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.2)}
+.hud .joy .ar{position:absolute;color:#9a9a98}
+.hud .joy .ar svg{width:15px;height:15px}
+.hud .joy .up{top:7px;left:50%;transform:translateX(-50%)} .hud .joy .dn{bottom:7px;left:50%;transform:translateX(-50%)}
+.hud .joy .lf{left:9px;top:50%;transform:translateY(-50%)} .hud .joy .rt{right:9px;top:50%;transform:translateY(-50%)}
+.htool{width:var(--tool);height:var(--tool);border-radius:999px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(20,20,20,.14)}
+.htool svg{width:24px;height:24px;color:var(--ink)}
+.htool.dark{background:var(--ink);color:#fff} .htool.dark svg{color:#fff}
+
+/* ZONE 6 — Bottom toolbar */
+.toolbar{flex:none;background:#fff;border-top:1px solid var(--line);padding:10px 8px 16px;display:flex;justify-content:space-around;box-shadow:0 -6px 20px rgba(20,20,20,.05)}
+.tool{display:flex;flex-direction:column;align-items:center;gap:5px;width:64px}
+.tool .ic{width:50px;height:50px;border-radius:15px;background:var(--field);display:flex;align-items:center;justify-content:center}
+.tool .ic svg{width:24px;height:24px;color:var(--ink)}
+.tool.active .ic{background:var(--ink)} .tool.active .ic svg{color:#fff}
+.tool .lb{font-size:11px;font-weight:700;color:var(--ink3)}
+.tool.reserved .ic{background:transparent;border:1.5px dashed var(--line)} .tool.reserved .ic svg{color:#c7c5bf}
+.tool.reserved .lb{color:#c0bdb6}
+
+/* ZONE 3 — Selection card / Bottom-sheet */
+.sheet{background:#fff;border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:0 -12px 40px rgba(20,20,20,.16);padding:10px 18px 18px;z-index:9}
+.sheet.over{position:absolute;left:0;right:0;bottom:0}
+.sheet.flow{flex:none;border-radius:0;box-shadow:none;border-top:1px solid var(--line);padding-top:8px}
+.sheet .grab{width:42px;height:5px;border-radius:3px;background:#e2e0db;margin:2px auto 12px}
+.sheet .sh{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sheet .sh .bk,.sheet .sh .cl{width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.sheet .sh .bk svg,.sheet .sh .cl svg{width:20px;height:20px}
+.sheet .sh h3{font-size:18px;font-weight:800;letter-spacing:-.3px;margin:0 auto 0 0}
+.sheet .sh .cl{margin-left:auto}
+
+.selhead{display:flex;align-items:flex-start;gap:12px;padding:2px 0 10px}
+.selhead .ti{width:46px;height:46px;border-radius:12px;background:var(--field);display:flex;align-items:center;justify-content:center;flex:none}
+.selhead .ti svg{width:26px;height:26px;color:var(--ink)}
+.selhead .tx h3{font-size:18px;font-weight:800;letter-spacing:-.3px;line-height:1.1}
+.selhead .tx .role{font-size:13px;color:var(--ink2);margin-top:3px;font-weight:600}
+.selhead .tx .role.link{color:var(--sel-line)}
+.badgeline{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.b{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--field);color:var(--ink3)}
+.b.link{background:#eaf0ff;color:var(--sel-line)} .b.cut{background:#fdeeec;color:var(--blocker)}
+.b.comp{background:#efeafb;color:#6a4fb0} .b.warn{background:#fbf0e2;color:var(--warn)} .b.uniq{background:#eaf5ec;color:var(--ok)}
+.b svg{width:12px;height:12px}
+
+.ctl{padding:11px 0;border-top:1px solid var(--line)}
+.ctl .k{font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px}
+.num{display:flex;align-items:center;gap:10px}
+.num .v{flex:1;height:48px;border:1px solid var(--line);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800}
+.num .v small{font-size:12px;color:var(--ink2);font-weight:700;margin-left:4px}
+.num .pm{width:48px;height:48px;border-radius:12px;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--ink)}
+.seg{display:flex;background:var(--field);border-radius:12px;padding:4px;gap:4px}
+.seg .o{flex:1;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--ink3)}
+.seg .o.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(20,20,20,.1)}
+.tgl{display:flex;align-items:center;justify-content:space-between;padding:11px 0}
+.tgl .lab{font-size:14px;font-weight:600;color:var(--ink)}
+.tgl .sw{width:46px;height:28px;border-radius:999px;background:#dcdad5;position:relative;flex:none}
+.tgl .sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:999px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.tgl .sw.on{background:var(--ink)} .tgl .sw.on i{left:21px}
+.listrow{display:flex;align-items:center;gap:12px;padding:10px 0}
+.listrow .sq{width:54px;height:54px;border-radius:var(--r-img);background:var(--ph);flex:none;display:flex;align-items:center;justify-content:center}
+.listrow .sq svg{width:24px;height:24px;color:#8a8780}
+.listrow .nm{font-weight:800;font-size:15px;color:var(--ink)}
+.listrow .ds{font-size:12.5px;color:var(--ink2);margin-top:1px}
+.listrow .ch{margin-left:auto;color:var(--ink2)} .listrow .ch svg{width:18px;height:18px}
+.search{height:48px;border-radius:14px;background:var(--field);display:flex;align-items:center;padding:0 16px;gap:10px;color:var(--ink2);font-size:15px;margin-bottom:10px}
+.search svg{width:20px;height:20px;margin-left:auto;color:var(--ink2)}
+.counts{display:flex;align-items:center;justify-content:space-between;margin:2px 0 8px}
+.counts .c{font-size:13px;font-weight:700;color:var(--ink)}
+.cta{height:52px;border-radius:14px;background:var(--ink);color:#fff;font-weight:800;font-size:15.5px;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px}
+
+.menurow{display:flex;align-items:center;gap:12px;padding:13px 2px;border-top:1px solid var(--line)}
+.menurow .mi{width:38px;height:38px;border-radius:11px;background:var(--field);display:flex;align-items:center;justify-content:center;flex:none}
+.menurow .mi svg{width:21px;height:21px;color:var(--ink)}
+.menurow .ml{font-size:15px;font-weight:700;color:var(--ink)}
+.menurow .ms{font-size:11.5px;color:var(--ink2)}
+.menurow .ch{margin-left:auto;color:var(--ink2)} .menurow .ch svg{width:18px;height:18px}
+.menurow.danger .ml{color:var(--blocker)} .menurow.danger .mi svg{color:var(--blocker)}
+
+.tree{padding:4px 0}
+.tnode{display:flex;align-items:center;gap:9px;padding:9px 2px}
+.tnode .dot{width:9px;height:9px;border-radius:999px;flex:none}
+.tnode .nm{font-size:14px;font-weight:700;color:var(--ink)}
+.tnode .badges{display:flex;gap:4px;margin-left:6px} .tnode .badges svg{width:14px;height:14px}
+.tnode .eyes{margin-left:auto;display:flex;gap:9px;color:var(--ink2)} .tnode .eyes svg{width:16px;height:16px}
+.tnode.indent{padding-left:22px}
+
+/* Annotatsiya */
+.specs{background:#fff;border:1px solid #ddd;border-radius:14px;padding:14px 16px;width:262px;align-self:flex-start}
+.specs h4{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#46443f;margin-bottom:9px}
+.specs .sp{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px dashed #e6e4df;font-size:12px}
+.specs .sp:first-of-type{border-top:none}
+.specs .sp .kk{color:#8a8780;flex:1}
+.specs .sp .vv{font-weight:700;color:#28261f;font-family:'Consolas','SF Mono',monospace}
+.specs .sp .sw{width:15px;height:15px;border-radius:4px;border:1px solid rgba(0,0,0,.1);flex:none}
+
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px;margin-top:20px;max-width:1180px}
+.scard{background:#fff;border:1px solid #e0ded9;border-radius:13px;overflow:hidden}
+.scard .chip2{height:74px} .scard .meta2{padding:9px 11px}
+.scard .meta2 .nm{font-size:12.5px;font-weight:800} .scard .meta2 .hx{font-family:'Consolas',monospace;font-size:11.5px;color:#8a8780;margin-top:1px}
+.scard .meta2 .ro{font-size:11px;color:#8a8780;margin-top:3px}
+
+.type-list{margin-top:20px;background:#fff;border:1px solid #e0ded9;border-radius:14px;padding:8px 22px;max-width:1180px}
+.type-row{display:flex;align-items:baseline;gap:18px;padding:13px 0;border-top:1px solid #efedea}
+.type-row:first-child{border-top:none}
+.type-row .demo{flex:1;color:var(--ink)} .type-row .spec{font-family:'Consolas',monospace;font-size:12px;color:#8a8780;width:240px;flex:none}
+
+.icon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(94px,1fr));gap:10px;margin-top:20px;max-width:1180px}
+.icell{background:#fff;border:1px solid #e0ded9;border-radius:12px;padding:13px 6px 9px;display:flex;flex-direction:column;align-items:center;gap:7px}
+.icell svg{width:26px;height:26px;color:var(--ink)}
+.icell span{font-size:10.5px;color:#8a8780;text-align:center;font-weight:600}
+
+.note{max-width:1180px;margin:16px auto 0;background:#fffdf6;border:1px solid #ecdfb8;border-radius:12px;padding:13px 16px;font-size:13px;color:#5c5326;line-height:1.6}
+.note b{color:#3f3a18}
+.note.blk{background:#fdf3f2;border-color:#f0cdc9;color:#7a2e27}.note.blk b{color:#5e201b}
+.note.real{background:#f1f7f2;border-color:#cadfce;color:#2f5a36}.note.real b{color:#234a2a}
+.divider{max-width:1180px;margin:46px auto 0;border-top:1px solid #d6d4cf}
+@media(max-width:680px){body{padding:24px 14px 80px}.specs{width:100%}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+ <g id="i-back"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-menu"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+ <g id="i-close"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+ <g id="i-info"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></g>
+ <g id="i-search"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></g>
+ <g id="i-filter"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></g>
+ <g id="i-rotate"><path d="M4 9a8 8 0 1 1-1 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3 5v4h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-updown"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-resize"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-edit"><path d="M4 20h4L19 9l-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 6l4 4" stroke="currentColor" stroke-width="1.7"/></g>
+ <g id="i-open"><rect x="5" y="4" width="11" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M16 4l3 2v12l-3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="12" r="1" fill="currentColor"/></g>
+ <g id="i-dup"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.7"/></g>
+ <g id="i-trash"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-cube"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 3v18M4 7.5l8 4.5 8-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></g>
+ <g id="i-undo"><path d="M9 7L4 12l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12h11a5 5 0 0 1 0 10h-1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></g>
+ <g id="i-redo"><path d="M15 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12H9a5 5 0 0 0 0 10h1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></g>
+ <g id="i-select"><path d="M6 4l13 7-5 1.5L11 18 6 4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></g>
+ <g id="i-move"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-divide-h"><rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 12h16" stroke="currentColor" stroke-width="1.8"/></g>
+ <g id="i-divide-v"><rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 4v16" stroke="currentColor" stroke-width="1.8"/></g>
+ <g id="i-add"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+ <g id="i-merge"><path d="M5 5h5M5 19h5M10 5c5 0 4 7 9 7M10 19c5 0 4-7 9-7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-material"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 4a8 8 0 0 0 0 16" fill="currentColor" opacity=".18"/><circle cx="9.5" cy="10" r="1.1" fill="currentColor"/></g>
+ <g id="i-hinge"><rect x="4" y="5" width="6" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="5" width="6" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 9h4M10 15h4" stroke="currentColor" stroke-width="1.7"/></g>
+ <g id="i-frame"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-chev"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-check"><path d="M5 12l5 5L20 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-link"><path d="M9 12h6M8 8H6a4 4 0 0 0 0 8h2M16 8h2a4 4 0 0 1 0 8h-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></g>
+ <g id="i-cut"><circle cx="6" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 7.5L20 18M8 16.5L20 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></g>
+ <g id="i-layers"><path d="M12 3l9 5-9 5-9-5 9-5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 13l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></g>
+ <g id="i-warn"><path d="M12 4l9 16H3L12 4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 10v5M12 17.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></g>
+ <g id="i-glass"><rect x="5" y="3" width="14" height="18" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 6l4 4M7 11l8-8" stroke="currentColor" stroke-width="1.2" opacity=".55"/></g>
+ <g id="i-eye"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/></g>
+ <g id="i-lock"><rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.6"/></g>
+ <g id="i-target"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></g>
+ <g id="i-double"><rect x="5" y="5" width="11" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 7h3v12h-3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 5v14" stroke="currentColor" stroke-width="1.2" opacity=".5"/></g>
+ <g id="i-grid"><rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 10h16M4 15h16M10 4v16M15 4v16" stroke="currentColor" stroke-width="1.3"/></g>
+ <g id="i-dim"><path d="M4 8v8M20 8v8M4 12h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M7 9l-3 3 3 3M17 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <g id="i-save"><path d="M5 4h11l3 3v13H5V4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 4v5h7V4M8 20v-6h8v6" fill="none" stroke="currentColor" stroke-width="1.5"/></g>
+ <g id="i-export"><path d="M12 15V4M8 8l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></g>
+ <g id="i-steps"><path d="M4 18h5v-5h5V8h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></g>
+ <g id="i-lshape"><path d="M5 4h6v9h8v7H5V4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></g>
+</defs></svg>
+
+<div class="board-head">
+  <h1>Mebelchi — Конструктор каркаса</h1>
+  <div class="sub">Дизайн-концепция: цвета, иконки и экраны приложения.</div>
+</div>
+
+<div class="section">
+  <h2><span class="n">1</span> Цвета и иконки</h2>
+  <div class="lead">Цветовая палитра и набор иконок приложения.</div>
+
+  <h3 style="margin-top:22px;font-size:15px;font-weight:800;color:#46443f">Цвета</h3>
+  <div class="swatches">
+    <div class="scard"><div class="chip2" style="background:#ffffff;border-bottom:1px solid #eee"></div><div class="meta2"><div class="nm">Фон</div><div class="hx">#FFFFFF</div><div class="ro">фон страницы</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#fafafa"></div><div class="meta2"><div class="nm">Светлый фон</div><div class="hx">#FAFAFA</div><div class="ro">светлый фон</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#1c1c1d"></div><div class="meta2"><div class="nm">Основной текст</div><div class="hx">#1C1C1D</div><div class="ro">заголовок</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#000000"></div><div class="meta2"><div class="nm">Кнопка / иконка</div><div class="hx">#000000</div><div class="ro">чёрный</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#888888"></div><div class="meta2"><div class="nm">Второстепенный текст</div><div class="hx">#888888</div><div class="ro">подзаголовок</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#575757"></div><div class="meta2"><div class="nm">Тёмная метка</div><div class="hx">#575757</div><div class="ro">метка</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#dedcd8"></div><div class="meta2"><div class="nm">Граница</div><div class="hx">#DEDCD8</div><div class="ro">линия карточки</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#f6f5f2"></div><div class="meta2"><div class="nm">Поле</div><div class="hx">#F6F5F2</div><div class="ro">фон поля</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#7e9be6"></div><div class="meta2"><div class="nm">Выделение (заливка)</div><div class="hx">#7E9BE6</div><div class="ro">выделенный объект</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#2a6cee"></div><div class="meta2"><div class="nm">Выделение (линия)</div><div class="hx">#2A6CEE</div><div class="ro">акцентная линия</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#9b9b9b"></div><div class="meta2"><div class="nm">3D-стена</div><div class="hx">#9B9B9B</div><div class="ro">серый фон 3D</div></div></div>
+    <div class="scard"><div class="chip2" style="background:#a36b37"></div><div class="meta2"><div class="nm">Дерево (пол)</div><div class="hx">#A36B37</div><div class="ro">рендер</div></div></div>
+  </div>
+  
+
+  <h3 style="margin-top:26px;font-size:15px;font-weight:800;color:#46443f">Шрифт — Inter</h3>
+  <div class="type-list">
+    <div class="type-row"><div class="demo" style="font-size:28px;font-weight:800;letter-spacing:-.5px">Редактор каркаса</div><div class="spec">28px · 800 · ls −.5 · #1C1C1D</div></div>
+    <div class="type-row"><div class="demo" style="font-size:18px;font-weight:800;letter-spacing:-.3px">Заголовок карточки</div><div class="spec">18px · 800 · ls −.3</div></div>
+    <div class="type-row"><div class="demo" style="font-size:18px;font-weight:800">9 426 330 <span style="font-size:13px">сум</span></div><div class="spec">цена 18px/800 · «сум» 13px/700</div></div>
+    <div class="type-row"><div class="demo" style="font-size:15px;font-weight:600">Основной текст — описание</div><div class="spec">15px · 600 · #1C1C1D</div></div>
+    <div class="type-row"><div class="demo" style="font-size:12.5px;color:#888888;font-weight:600">элемент с изменяемым размером</div><div class="spec">12.5px · 600 · #888888</div></div>
+    <div class="type-row"><div class="demo" style="font-size:11px;font-weight:700">Метка / бейдж</div><div class="spec">11px · 700</div></div>
+  </div>
+
+  <h3 style="margin-top:26px;font-size:15px;font-weight:800;color:#46443f">Иконки</h3>
+  <div class="lead" style="margin-top:6px">Тонкие монохромные линейные иконки.</div>
+  <div class="icon-grid">
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-select"/></svg><span>select</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-move"/></svg><span>move</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-resize"/></svg><span>resize</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-divide-h"/></svg><span>divide-h</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-divide-v"/></svg><span>divide-v</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-add"/></svg><span>add</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-merge"/></svg><span>merge</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-lshape"/></svg><span>L-footprint</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-rotate"/></svg><span>rotate</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-updown"/></svg><span>up/down</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-edit"/></svg><span>edit</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-open"/></svg><span>open</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-dup"/></svg><span>duplicate</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-trash"/></svg><span>delete</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-material"/></svg><span>material</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-hinge"/></svg><span>hardware</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-frame"/></svg><span>frame</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-double"/></svg><span>doubled</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-grid"/></svg><span>glazed-grid</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-glass"/></svg><span>glass</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-steps"/></svg><span>step/offset</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-link"/></svg><span>link 🔗</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-cut"/></svg><span>cut ✂</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-warn"/></svg><span>warn ⚠</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-layers"/></svg><span>layers</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-cube"/></svg><span>view-cube</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-undo"/></svg><span>undo</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-redo"/></svg><span>redo</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-dim"/></svg><span>dimension</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-target"/></svg><span>load-bear</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-back"/></svg><span>back</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-menu"/></svg><span>menu</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg><span>close</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-search"/></svg><span>search</span></div>
+    <div class="icell"><svg viewBox="0 0 24 24"><use href="#i-save"/></svg><span>save</span></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <h2><span class="n">2</span> Главный экран</h2>
+  <div class="lead">Главный экран редактора — внутренняя структура шкафа.</div>
+  <div class="row">
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar">
+          <div class="ticker"><b>9 426 330</b><span class="cur">сум</span><svg><use href="#i-info"/></svg></div>
+          <div class="icirc"><svg><use href="#i-back"/></svg></div>
+          <button class="pill sm">Дальше</button>
+          <div class="hamb"><svg><use href="#i-menu"/></svg></div>
+        </div>
+        <div class="crumb"><span>Проект №1</span><svg><use href="#i-chev"/></svg><b>Шкаф №3 · каркас</b></div>
+        <div class="canvas-wrap">
+          <div class="rail">
+            <div class="seg">
+              <button class="rbtn on"><svg viewBox="0 0 24 24"><use href="#i-select"/></svg></button>
+              <button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-material"/></svg></button>
+              <button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-hinge"/></svg></button>
+              <button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-frame"/></svg></button>
+              <div class="gap">+</div>
+            </div>
+            <div class="seg">
+              <button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-cube"/></svg></button>
+              <button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-glass"/></svg></button>
+              <button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-dim"/></svg></button>
+            </div>
+          </div>
+          <div class="chip"><div class="t"><svg><use href="#i-link"/></svg> Полка-обувь</div><div class="s">Тип · 3 детали выделено</div><div class="d">600 × 320 мм · 16 мм</div></div>
+          <div class="cabinet">
+            <div class="carcass" style="width:230px;height:360px;padding:9px">
+              <div class="inside" style="inset:9px"></div>
+              <div class="vboard" style="left:121px;top:9px;width:7px;height:342px"></div>
+              <div class="rail-bar" style="left:20px;width:92px;top:60px"></div>
+              <div class="board" style="left:16px;width:100px;height:7px;top:150px"></div>
+              <div class="sel-zone" style="left:132px;top:188px;width:88px;height:160px"></div>
+              <div class="board" style="left:134px;width:84px;height:7px;top:204px"></div>
+              <div class="board" style="left:134px;width:84px;height:7px;top:256px"></div>
+              <div class="board" style="left:134px;width:84px;height:7px;top:308px"></div>
+              <div class="board" style="left:134px;width:84px;height:7px;top:70px"></div>
+              <div class="board" style="left:134px;width:84px;height:7px;top:130px"></div>
+            </div>
+          </div>
+          <div class="handle" style="right:44px;top:150px"><svg><use href="#i-rotate"/></svg></div>
+          <div class="handle" style="right:14px;top:208px"><svg><use href="#i-updown"/></svg></div>
+          <div class="handle" style="right:14px;top:264px"><svg><use href="#i-resize"/></svg></div>
+          <div class="hud">
+            <div class="left"><div class="htool"><svg><use href="#i-cube"/></svg></div><div class="htool dark"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg></div></div>
+            <div class="joy"><div class="knob"></div>
+              <div class="ar up"><svg viewBox="0 0 24 24"><path d="M12 6l5 6H7l5-6z" fill="currentColor"/></svg></div>
+              <div class="ar dn"><svg viewBox="0 0 24 24"><path d="M12 18l-5-6h10l-5 6z" fill="currentColor"/></svg></div>
+              <div class="ar lf"><svg viewBox="0 0 24 24"><path d="M6 12l6-5v10l-6-5z" fill="currentColor"/></svg></div>
+              <div class="ar rt"><svg viewBox="0 0 24 24"><path d="M18 12l-6 5V7l6 5z" fill="currentColor"/></svg></div>
+            </div>
+            <div class="right"><div class="htool"><svg><use href="#i-undo"/></svg></div><div class="htool"><svg><use href="#i-redo"/></svg></div></div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <div class="tool active"><div class="ic"><svg><use href="#i-select"/></svg></div><div class="lb">Выбор</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-move"/></svg></div><div class="lb">Двигать</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-resize"/></svg></div><div class="lb">Размер</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-divide-h"/></svg></div><div class="lb">Делить</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-add"/></svg></div><div class="lb">Добавить</div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Главный экран</div>
+    </div>
+
+    
+  </div>
+  
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <h2><span class="n">3</span> Выбор деталей</h2>
+  <div class="lead">Выбор подстраивается: одна деталь или группа одинаковых.</div>
+  <div class="row">
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>9 426 330</b><span class="cur">сум</span><svg><use href="#i-info"/></svg></div><div class="icirc"><svg><use href="#i-back"/></svg></div><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="cabinet"><div class="carcass" style="width:200px;height:210px;padding:8px">
+            <div class="inside" style="inset:8px"></div>
+            <div class="rail-bar" style="left:24px;width:152px;top:42px"></div>
+            <div class="sel-zone" style="left:16px;top:96px;width:168px;height:26px"></div>
+            <div class="board" style="left:18px;width:164px;height:7px;top:106px"></div>
+            <div class="board" style="left:18px;width:164px;height:7px;top:162px"></div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          <div class="grab"></div>
+          <div class="selhead"><div class="ti"><svg><use href="#i-select"/></svg></div><div class="tx"><h3>Полка-платье</h3><div class="role">Уникальная деталь</div><div class="badgeline"><span class="b uniq"><svg><use href="#i-check"/></svg> прямое редактирование</span></div></div></div>
+          <div class="ctl"><div class="k">Ширина · Глубина</div><div class="num"><div class="pm">–</div><div class="v">980</div><div class="pm">+</div></div></div>
+          <div class="ctl" style="text-align:center;color:var(--ink2);font-size:12px;padding-top:12px">— нет «отделить», нет счётчика ✂ —</div>
+        </div>
+      </div></div></div>
+      <div class="cap">Одна деталь</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>9 426 330</b><span class="cur">сум</span><svg><use href="#i-info"/></svg></div><div class="icirc"><svg><use href="#i-back"/></svg></div><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="cabinet"><div class="carcass" style="width:200px;height:210px;padding:8px">
+            <div class="inside" style="inset:8px"></div>
+            <div class="sel-zone" style="left:16px;top:96px;width:168px;height:100px"></div>
+            <div class="board" style="left:18px;width:164px;height:7px;top:106px"></div>
+            <div class="board" style="left:18px;width:164px;height:7px;top:146px"></div>
+            <div class="board" style="left:18px;width:164px;height:7px;top:186px"></div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          <div class="grab"></div>
+          <div class="selhead"><div class="ti"><svg><use href="#i-link"/></svg></div><div class="tx"><h3>Полка-обувь</h3><div class="role link">Тип · 3 детали выделено</div><div class="badgeline"><span class="b link"><svg><use href="#i-link"/></svg> связаны</span><span class="b cut"><svg><use href="#i-cut"/></svg> ✂ 0</span></div></div></div>
+          <div class="ctl"><div class="k">Глубина (применится ко всем 3)</div><div class="num"><div class="pm">–</div><div class="v">320</div><div class="pm">+</div></div></div>
+          <div class="menurow danger"><div class="mi"><svg><use href="#i-cut"/></svg></div><div><div class="ml">Отделить эту деталь</div><div class="ms">правка локальная · ✂ +1</div></div><div class="ch"><svg><use href="#i-chev"/></svg></div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Группа деталей</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="canvas-wrap" style="background:linear-gradient(180deg,#fafafa,#f0efec)"><div class="cabinet" style="opacity:.5"><div class="carcass" style="width:180px;height:200px;padding:8px"><div class="inside" style="inset:8px"></div></div></div></div>
+        <div class="sheet over">
+          <div class="grab"></div>
+          <div class="selhead" style="padding-bottom:4px"><div class="ti"><svg><use href="#i-link"/></svg></div><div class="tx"><h3>Новая группа · 5 полок</h3><div class="role">Первая правка — как ведём?</div></div></div>
+          <div class="lead" style="font-size:12.5px;color:#6b6862;margin:2px 0 6px">Один раз. Запомним выбор.</div>
+          <div class="menurow"><div class="mi"><svg><use href="#i-link"/></svg></div><div><div class="ml">Держать связанными</div><div class="ms">правка одной → всем 5 (как тип)</div></div><div class="ch"><svg><use href="#i-check"/></svg></div></div>
+          <div class="menurow"><div class="mi"><svg><use href="#i-cut"/></svg></div><div><div class="ml">Каждая будет своя</div><div class="ms">группа распадётся → 5 уникальных, без тах</div></div><div class="ch"><svg><use href="#i-chev"/></svg></div></div>
+          <div class="cta">Применить</div>
+        </div>
+      </div></div></div>
+      <div class="cap">Выбор связи</div>
+    </div>
+  </div>
+  
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <h2><span class="n">4</span> Как строится каркас</h2>
+  <div class="lead">Пошаговое построение каркаса с нуля.</div>
+  <div class="row">
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>0</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><button class="pill sm disabled">Дальше</button><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="cabinet"><div style="position:relative;width:200px;height:210px">
+            <div class="carcass" style="position:absolute;left:0;top:0;width:84px;height:210px;padding:7px"><div class="inside" style="inset:7px"></div></div>
+            <div class="carcass" style="position:absolute;left:84px;top:120px;width:116px;height:90px;padding:7px"><div class="inside" style="inset:7px"></div></div>
+            <div style="position:absolute;left:90px;top:128px;width:18px;height:18px;border-left:2px solid var(--sel-line);border-bottom:2px solid var(--sel-line)"></div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          
+          <div class="seg"><div class="o">Прямой</div><div class="o on">L-угол</div><div class="o">П-форма</div></div>
+          <div class="ctl" style="padding:10px 0 0"><div class="k">Глубина · плечо A / плечо B (на уровне блока)</div><div class="num"><div class="v">600</div><div class="v">400</div></div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">1 · Форма каркаса</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>1 240 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><button class="pill sm">Дальше</button><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="cabinet"><div class="carcass" style="width:172px;height:320px;padding:8px"><div class="inside" style="inset:8px"></div><div class="vboard" style="left:84px;top:8px;width:7px;height:304px"></div><div class="sel-mid" style="left:87px"></div></div></div>
+          <div class="chip" style="left:50%;transform:translateX(-50%);top:auto;bottom:16px;min-width:170px;text-align:center"><div class="t" style="justify-content:center">Плечо A · вертикальное деление</div><div class="s">прямое размещение, не ratio</div></div>
+        </div>
+        <div class="sheet flow"><div class="seg"><div class="o on">Прямой раздел</div><div class="o">Свободно</div><div class="o">Равно N</div></div><div class="ctl" style="border-top:none;padding:10px 0 0;text-align:center;color:var(--ink2);font-size:12px">для нерегулярного шкафа — прямой раздел по умолчанию</div></div>
+      </div></div></div>
+      <div class="cap">2 · Деление</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>1 980 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><button class="pill sm">Дальше</button><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="chip" style="left:10px;top:10px"><div class="t"><svg><use href="#i-link"/></svg> Полка-обувь</div><div class="s">Тип · 3 детали</div></div>
+          <div class="cabinet"><div class="carcass" style="width:172px;height:320px;padding:8px"><div class="inside" style="inset:8px"></div><div class="vboard" style="left:84px;top:8px;width:7px;height:304px"></div>
+            <div class="sel-zone" style="left:12px;top:196px;width:72px;height:112px"></div>
+            <div class="board" style="left:14px;width:68px;height:6px;top:212px"></div>
+            <div class="board" style="left:14px;width:68px;height:6px;top:250px"></div>
+            <div class="board" style="left:14px;width:68px;height:6px;top:288px"></div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          <div class="badgeline" style="margin-bottom:8px"><span class="b link"><svg><use href="#i-link"/></svg> связаны</span><span class="b cut">✂ 0</span></div>
+          <div class="ctl" style="border-top:none;padding-top:0"><div class="k">Глубина · все 3 сразу (одно действие)</div><div class="num"><div class="pm">–</div><div class="v">320</div><div class="pm">+</div></div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">3 · Полки (3 шт.)</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>2 640 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><button class="pill sm">Дальше</button><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="cabinet"><div class="carcass" style="width:172px;height:320px;padding:8px"><div class="inside" style="inset:8px"></div><div class="vboard" style="left:84px;top:8px;width:7px;height:304px"></div>
+            <div class="sel-zone" style="left:96px;top:16px;width:62px;height:74px"></div>
+            <div class="sel-zone" style="left:96px;top:96px;width:62px;height:74px"></div>
+            <div class="board" style="left:96px;width:62px;height:6px;top:90px;opacity:.4"></div>
+            <div style="position:absolute;left:127px;top:90px;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:999px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,.15)"><svg style="width:17px;height:17px;color:var(--sel-line)"><use href="#i-merge"/></svg></div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          
+          <div class="selhead" style="padding:0 0 8px"><div class="ti"><svg><use href="#i-merge"/></svg></div><div class="tx"><h3 style="font-size:16px">Объединить 2 зоны</h3><div class="role">убрать полку → высокая зона (платье)</div></div></div>
+          <div class="cta">Объединить</div>
+        </div>
+      </div></div></div>
+      <div class="cap">4 · Объединение зон</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>2 980 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><button class="pill sm">Дальше</button><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="cabinet"><div class="carcass" style="width:172px;height:320px;padding:8px"><div class="inside" style="inset:8px"></div><div class="vboard" style="left:84px;top:8px;width:7px;height:304px"></div>
+            <div class="rail-bar" style="left:98px;width:56px;top:42px"></div>
+            <div class="sel-zone" style="left:94px;top:120px;width:64px;height:22px"></div>
+            <div class="board" style="left:96px;width:60px;height:6px;top:130px"></div>
+            <div class="board" style="left:14px;width:60px;height:6px;top:214px"></div>
+            <div class="board" style="left:14px;width:60px;height:6px;top:252px"></div>
+            <div class="board" style="left:14px;width:60px;height:6px;top:290px"></div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          <div class="selhead" style="padding-bottom:6px"><div class="ti"><svg><use href="#i-select"/></svg></div><div class="tx"><h3 style="font-size:16px">Полка-платье</h3><div class="role">Уникальная деталь</div><div class="badgeline"><span class="b uniq"><svg><use href="#i-check"/></svg> прямое редактирование</span></div></div></div>
+          <div class="ctl" style="padding:8px 0"><div class="k">Глубина (прямо)</div><div class="num"><div class="pm">–</div><div class="v">560</div><div class="pm">+</div></div></div>
+          <div style="text-align:center;color:var(--ink2);font-size:11.5px">— НЕТ отделить, НЕТ счётчика ✂ —</div>
+        </div>
+      </div></div></div>
+      <div class="cap">5 · Полка для платья</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>3 460 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><button class="pill sm">Готово</button><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="cabinet"><div class="carcass" style="width:172px;height:320px;padding:8px"><div class="inside" style="inset:8px"></div><div class="vboard" style="left:84px;top:8px;width:7px;height:304px"></div>
+            <div style="position:absolute;left:96px;top:150px;width:92px;height:44px;border:1.5px dashed var(--sel-line);border-radius:3px;opacity:.55"></div>
+            <div class="sel-zone" style="left:94px;top:150px;width:64px;height:44px"></div>
+            <div class="board" style="left:96px;width:60px;height:8px;top:152px"></div>
+            <div style="position:absolute;left:96px;top:160px;width:60px;height:30px;border:1.5px solid var(--sel-line);border-top:none;border-radius:0 0 3px 3px;background:rgba(126,155,230,.12)"></div>
+            <div style="position:absolute;left:178px;top:166px;color:var(--sel-line)"><svg style="width:14px;height:14px" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          <div class="selhead" style="padding-bottom:6px"><div class="ti"><svg><use href="#i-updown"/></svg></div><div class="tx"><h3 style="font-size:16px">Брючница (выдвижная)</h3><div class="role">направляющие · конверт хода 470 мм</div></div></div>
+          <div class="ctl" style="padding:8px 0"><div class="k">Выдвижение</div><div class="seg"><div class="o on">Полное</div><div class="o">Частичное</div></div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">6 · Выдвижной элемент</div>
+    </div>
+  </div>
+  
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <h2><span class="n">5</span> Четыре режима</h2>
+  <div class="lead">Четыре режима: сборка, материал, фурнитура, каркас.</div>
+  <div class="row">
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>3 180 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="rail"><div class="seg"><button class="rbtn on"><svg viewBox="0 0 24 24"><use href="#i-select"/></svg></button><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-material"/></svg></button><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-hinge"/></svg></button><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-frame"/></svg></button></div></div>
+          <div class="cabinet"><div class="carcass" style="width:185px;height:200px;padding:8px"><div class="inside" style="inset:8px"></div><div class="sel-zone" style="left:15px;top:88px;width:155px;height:24px"></div><div class="board" style="left:17px;width:151px;height:7px;top:98px"></div></div></div>
+        </div>
+        <div class="sheet flow">
+          <div class="selhead" style="padding-bottom:8px"><div class="ti"><svg><use href="#i-select"/></svg></div><div class="tx"><h3 style="font-size:16px">Полка-платье</h3><div class="role">Уникальная деталь</div></div></div>
+          <div class="num"><div class="pm">–</div><div class="v">980</div><div class="pm">+</div></div>
+        </div>
+        <div class="toolbar">
+          <div class="tool active"><div class="ic"><svg><use href="#i-select"/></svg></div><div class="lb">Выбор</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-move"/></svg></div><div class="lb">Двиг.</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-resize"/></svg></div><div class="lb">Разм.</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-divide-h"/></svg></div><div class="lb">Дел.</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-add"/></svg></div><div class="lb">Доб.</div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Сборка</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>3 180 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="rail"><div class="seg"><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-select"/></svg></button><button class="rbtn on"><svg viewBox="0 0 24 24"><use href="#i-material"/></svg></button><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-hinge"/></svg></button><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-frame"/></svg></button></div></div>
+          <div class="cabinet"><div class="carcass" style="width:185px;height:200px;padding:8px"><div class="inside" style="inset:8px"></div><div class="sel-zone pink" style="left:15px;top:88px;width:155px;height:24px"></div><div class="board" style="left:17px;width:151px;height:7px;top:98px;background:linear-gradient(180deg,#e7ddd0,#cdbfa9 50%,#b3a387)"></div></div></div>
+        </div>
+        <div class="sheet flow">
+          <div class="counts"><span class="c">53 Товаров</span><span class="pill ghost sm" style="height:34px"><svg style="width:16px;height:16px" viewBox="0 0 24 24"><use href="#i-filter"/></svg> Все фильтры</span></div>
+          <div class="listrow"><div class="sq" style="background:#dccdb4"></div><div><div class="nm">ЛДСП Дуб Сонома</div><div class="ds">покрытие · 16 мм</div></div><div class="ch"><svg><use href="#i-check"/></svg></div></div>
+          <div class="listrow"><div class="sq" style="background:#3a3a3a"></div><div><div class="nm">ЛДСП Графит</div><div class="ds">покрытие · 16 мм</div></div><div class="ch"><svg><use href="#i-chev"/></svg></div></div>
+        </div>
+        <div class="toolbar">
+          <div class="tool active"><div class="ic"><svg><use href="#i-material"/></svg></div><div class="lb">Покр.</div></div>
+          <div class="tool"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></div><div class="lb">Цвет</div></div>
+          <div class="tool"><div class="ic"><svg viewBox="0 0 24 24"><rect x="5" y="9" width="14" height="6" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></div><div class="lb">Кром.</div></div>
+          <div class="tool"><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 18h16M7 18V8M12 18V5M17 18v-7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div><div class="lb">Роль</div></div>
+          <div class="tool reserved"><div class="ic"><svg><use href="#i-add"/></svg></div><div class="lb">—</div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Материал</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>3 410 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="rail"><div class="seg"><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-select"/></svg></button><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-material"/></svg></button><button class="rbtn on"><svg viewBox="0 0 24 24"><use href="#i-hinge"/></svg></button><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-frame"/></svg></button></div></div>
+          <div class="cabinet"><div class="carcass" style="width:185px;height:200px;padding:8px"><div class="inside" style="inset:8px"></div><div class="sel-zone" style="left:15px;top:18px;width:155px;height:164px;background:rgba(126,155,230,.14)"></div>
+            <div class="handle" style="left:152px;top:44px;width:30px;height:30px"><svg style="width:15px;height:15px"><use href="#i-hinge"/></svg></div>
+            <div class="handle" style="left:152px;top:140px;width:30px;height:30px"><svg style="width:15px;height:15px"><use href="#i-hinge"/></svg></div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          <div class="selhead" style="padding-bottom:8px"><div class="ti"><svg><use href="#i-hinge"/></svg></div><div class="tx"><h3 style="font-size:16px">Дверь-фасад</h3><div class="role">2 петли · накладная</div></div></div>
+          <div class="seg"><div class="o on">Петля</div><div class="o">Ручка</div><div class="o">Направл.</div></div>
+        </div>
+        <div class="toolbar">
+          <div class="tool active"><div class="ic"><svg><use href="#i-hinge"/></svg></div><div class="lb">Петли</div></div>
+          <div class="tool"><div class="ic"><svg viewBox="0 0 24 24"><rect x="6" y="10" width="12" height="4" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></div><div class="lb">Ручки</div></div>
+          <div class="tool"><div class="ic"><svg viewBox="0 0 24 24"><path d="M6 6v12M18 6v12M6 12h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div><div class="lb">Напр.</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-target"/></svg></div><div class="lb">Несущ.</div></div>
+          <div class="tool reserved"><div class="ic"><svg><use href="#i-add"/></svg></div><div class="lb">—</div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Фурнитура</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>3 410 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="rail"><div class="seg"><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-select"/></svg></button><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-material"/></svg></button><button class="rbtn"><svg viewBox="0 0 24 24"><use href="#i-hinge"/></svg></button><button class="rbtn on"><svg viewBox="0 0 24 24"><use href="#i-frame"/></svg></button></div></div>
+          <div class="cabinet"><div class="carcass" style="width:185px;height:200px;padding:8px"><div class="inside" style="inset:8px"></div><div class="board" style="left:17px;width:151px;height:12px;top:32px;background:linear-gradient(180deg,#d9b585,#b88a52)"></div><div class="sel-zone" style="left:15px;top:28px;width:155px;height:20px"></div><div style="position:absolute;left:128px;top:13px;font-size:9px;font-weight:800;color:var(--sel-line);background:#fff;padding:0 3px;border-radius:3px">32мм</div></div></div>
+        </div>
+        <div class="sheet flow">
+          <div class="selhead" style="padding-bottom:6px"><div class="ti"><svg><use href="#i-double"/></svg></div><div class="tx"><h3 style="font-size:16px">Столешница</h3><div class="role">⧉ удвоение · 32 мм фронт</div></div></div>
+          <div class="badgeline" style="margin-bottom:6px"><span class="b comp"><svg><use href="#i-double"/></svg> 2 слоя</span><span class="b" style="background:#f6f5f2;color:var(--ink3)">кромка 32мм</span><span class="b warn"><svg><use href="#i-warn"/></svg> риск</span></div>
+          <div class="tgl"><span class="lab">Частичное удвоение (фронт 100мм)</span><span class="sw on"><i></i></span></div>
+        </div>
+        <div class="toolbar">
+          <div class="tool active"><div class="ic"><svg><use href="#i-double"/></svg></div><div class="lb">Удвн.</div></div>
+          <div class="tool"><div class="ic"><svg viewBox="0 0 24 24"><rect x="5" y="9" width="14" height="6" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></div><div class="lb">Кром.</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-frame"/></svg></div><div class="lb">Стык</div></div>
+          <div class="tool"><div class="ic"><svg><use href="#i-steps"/></svg></div><div class="lb">Смещ.</div></div>
+          <div class="tool reserved"><div class="ic"><svg><use href="#i-add"/></svg></div><div class="lb">—</div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Каркас</div>
+    </div>
+  </div>
+  
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <h2><span class="n">6</span> Меню и слои</h2>
+  <div class="lead">Вложенные меню, редактор стыка, слои.</div>
+  <div class="row">
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="canvas-wrap"></div>
+        <div class="sheet over">
+          <div class="grab"></div>
+          <div class="sh"><span class="bk"><svg><use href="#i-back"/></svg></span><h3>Добавить › Полка</h3><span class="cl"><svg><use href="#i-close"/></svg></span></div>
+          <div class="menurow"><div class="mi"><svg><use href="#i-divide-h"/></svg></div><div><div class="ml">Обычная полка</div><div class="ms">16 мм · по ширине секции</div></div><div class="ch"><svg><use href="#i-chev"/></svg></div></div>
+          <div class="menurow"><div class="mi"><svg><use href="#i-double"/></svg></div><div><div class="ml">Удвоенная полка</div><div class="ms">2×16 → 32 мм · нагрузка</div></div><div class="ch"><svg><use href="#i-chev"/></svg></div></div>
+          <div class="menurow"><div class="mi"><svg><use href="#i-updown"/></svg></div><div><div class="ml">Выдвижная</div><div class="ms">направляющие · конверт хода</div></div><div class="ch"><svg><use href="#i-chev"/></svg></div></div>
+          <div class="menurow"><div class="mi"><svg><use href="#i-grid"/></svg></div><div><div class="ml">Решётка / разделители</div><div class="ms">внутренняя сетка</div></div><div class="ch"><svg><use href="#i-chev"/></svg></div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Меню элементов</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="canvas-wrap"><div class="cabinet"><div style="position:relative;width:160px;height:130px">
+          <div class="board" style="left:0;width:160px;height:14px;top:0;background:linear-gradient(180deg,#d9b585,#b88a52)"></div>
+          <div class="vboard" style="left:34px;top:14px;width:12px;height:116px"></div>
+          <div style="position:absolute;left:50px;top:4px;font-size:9px;font-weight:800;color:var(--sel-line)">X→</div>
+          <div style="position:absolute;left:16px;top:24px;font-size:9px;font-weight:800;color:var(--sel-line)">Y←</div>
+          <div style="position:absolute;left:48px;top:20px;width:8px;height:34px;background:repeating-linear-gradient(180deg,#0000,#0000 2px,#2a6cee 2px,#2a6cee 4px)"></div>
+          <div style="position:absolute;left:58px;top:34px;font-size:9px;font-weight:800;color:var(--sel-line)">Z</div>
+        </div></div></div>
+        <div class="sheet flow">
+          <div class="sh" style="margin-bottom:6px"><h3 style="font-size:16px">Стык-редактор · 3 значения</h3></div>
+          <div class="ctl" style="padding:8px 0"><div class="k">X · напуск столешницы</div><div class="num"><div class="pm">–</div><div class="v">18</div><div class="pm">+</div></div></div>
+          <div class="ctl" style="padding:8px 0"><div class="k">Y · отступ грани</div><div class="num"><div class="pm">–</div><div class="v">6</div><div class="pm">+</div></div></div>
+          <div class="ctl" style="padding:8px 0"><div class="k">Z · теневой зазор</div><div class="num"><div class="pm">–</div><div class="v">4</div><div class="pm">+</div></div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Стык — 3 значения</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="canvas-wrap"><div class="cabinet"><div style="position:relative;width:140px;height:180px">
+          <div style="position:absolute;inset:0;border:12px solid;border-image:linear-gradient(135deg,#caa169,#9c7640) 1;background:linear-gradient(135deg,#dfe9f0aa,#c5d4e0aa);border-radius:2px"></div>
+          <div style="position:absolute;inset:12px;border:2px dashed #2a6cee;border-radius:1px"></div>
+          <div style="position:absolute;left:50%;top:50%;width:5px;height:80%;background:#caa16988;transform:translate(-50%,-50%)"></div>
+          <div style="position:absolute;left:16px;top:20px;font-size:9px;font-weight:800;color:var(--sel-line)">паз ⌐</div>
+        </div></div></div>
+        <div class="sheet flow">
+          <div class="selhead" style="padding-bottom:6px"><div class="ti"><svg><use href="#i-glass"/></svg></div><div class="tx"><h3 style="font-size:16px">Стеклянный фасад</h3><div class="role">мунтины 16 · рама 32</div></div></div>
+          <div class="ctl" style="padding:10px 0"><div class="tgl" style="padding:0"><span class="lab">Паз под стекло</span><span class="sw on"><i></i></span></div></div>
+          <div class="badgeline"><span class="b uniq"><svg><use href="#i-check"/></svg> паз в крой-листе</span><span class="b warn"><svg><use href="#i-warn"/></svg> петля ↔ смещение</span></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Стеклянный фасад</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="canvas-wrap"></div>
+        <div class="sheet over">
+          <div class="grab"></div>
+          <div class="sh"><h3>Слои · структура</h3><span class="cl"><svg><use href="#i-layers"/></svg></span></div>
+          <div class="tree">
+            <div class="tnode"><span class="dot" style="background:#caa169"></span><span class="nm">Полка-платье</span><span class="eyes"><svg><use href="#i-eye"/></svg><svg><use href="#i-lock"/></svg></span></div>
+            <div class="tnode indent"><span class="dot" style="background:#7e9be6"></span><span class="nm">Полка-обувь</span><span class="badges" style="color:var(--sel-line)"><svg><use href="#i-link"/></svg></span><span style="font-size:10px;color:var(--ink2);margin-left:4px">×3</span><span class="eyes"><svg><use href="#i-eye"/></svg></span></div>
+            <div class="tnode indent"><span class="dot" style="background:#df5b66"></span><span class="nm">Полка-обувь</span><span class="badges" style="color:var(--blocker)"><svg><use href="#i-cut"/></svg></span><span class="eyes"><svg><use href="#i-eye"/></svg></span></div>
+            <div class="tnode"><span class="dot" style="background:#b88a52"></span><span class="nm">Столешница</span><span class="badges" style="color:#6a4fb0"><svg><use href="#i-double"/></svg></span><span class="badges" style="color:var(--warn)"><svg><use href="#i-warn"/></svg></span><span class="eyes"><svg><use href="#i-eye"/></svg></span></div>
+            <div class="tnode"><span class="dot" style="background:#9aa3ad"></span><span class="nm">Штанга</span><span class="eyes"><svg><use href="#i-eye"/></svg></span></div>
+          </div>
+        </div>
+      </div></div></div>
+      <div class="cap">Слои</div>
+    </div>
+  </div>
+  
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <h2><span class="n">7</span> Дополнительные возможности</h2>
+  <div class="lead">Угловые шкафы, объединение зон, умное крепление.</div>
+  <div class="row">
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>0</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><button class="pill sm">Дальше</button><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="cabinet"><div style="position:relative;width:230px;height:230px">
+            
+            <div class="carcass" style="position:absolute;left:0;top:0;width:90px;height:230px;padding:7px"><div class="inside" style="inset:7px"></div></div>
+            <div class="carcass" style="position:absolute;left:90px;bottom:0;width:140px;height:90px;padding:7px"><div class="inside" style="inset:7px"></div></div>
+            <div style="position:absolute;left:96px;top:140px;width:20px;height:20px;border-left:2px solid var(--sel-line);border-bottom:2px solid var(--sel-line)"></div>
+            <div style="position:absolute;left:120px;top:142px;font-size:10px;font-weight:800;color:var(--sel-line)">угол владеет<br>глубиной-шагом</div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          
+          <div class="seg"><div class="o">Прямой</div><div class="o on">L-угол</div><div class="o">П-форма</div></div>
+          <div class="ctl" style="padding:10px 0 0"><div class="k">Глубина · плечо A / плечо B</div><div class="num"><div class="pm">–</div><div class="v">600</div><div class="v">400</div><div class="pm">+</div></div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Угловой шкаф (L-форма)</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>2 100 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><button class="pill sm">Дальше</button><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap">
+          <div class="cabinet"><div class="carcass" style="width:200px;height:250px;padding:9px">
+            <div class="inside" style="inset:9px"></div>
+            
+            <div class="sel-zone" style="left:14px;top:14px;width:172px;height:108px"></div>
+            <div class="sel-zone" style="left:14px;top:128px;width:172px;height:108px"></div>
+            <div class="board" style="left:16px;width:168px;height:7px;top:122px;opacity:.5"></div>
+            <div style="position:absolute;left:50%;top:118px;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:999px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,.15)"><svg style="width:18px;height:18px;color:var(--sel-line)"><use href="#i-merge"/></svg></div>
+          </div></div>
+        </div>
+        <div class="sheet flow">
+          
+          <div class="selhead" style="padding:0 0 8px"><div class="ti"><svg><use href="#i-merge"/></svg></div><div class="tx"><h3 style="font-size:16px">Объединить 2 зоны</h3><div class="role">убрать полку → одна высокая зона (платье)</div></div></div>
+          <div class="cta">Объединить</div>
+        </div>
+      </div></div></div>
+      <div class="cap">Объединение зон</div>
+    </div>
+
+    
+    <div class="unit">
+      <div class="device"><div class="scale"><div class="screen">
+        <div class="status"><span>9:41</span><div class="dots"><span style="font-size:11px">5G</span><span class="bat"><i></i></span></div></div>
+        <div class="topbar"><div class="ticker"><b>4 250 000</b><span class="cur">сум</span></div><div class="icirc"><svg><use href="#i-back"/></svg></div><button class="pill sm">Дальше</button><div class="hamb"><svg><use href="#i-menu"/></svg></div></div>
+        <div class="canvas-wrap"><div class="cabinet"><div style="position:relative;width:216px;height:210px">
+          
+          <div style="position:absolute;left:4px;top:2px;font-size:9px;font-weight:800;color:var(--sel-line)">↧ 32мм фронт</div>
+          <div style="position:absolute;right:4px;top:2px;font-size:9px;font-weight:800;color:var(--ink2)">16мм сзади →</div>
+          
+          <div class="board" style="left:6px;width:204px;height:10px;top:26px;background:linear-gradient(180deg,#d9b585,#b88a52)"></div>
+          <div style="position:absolute;left:6px;top:36px;width:74px;height:9px;background:linear-gradient(180deg,#c39a63,#a8814b);border-radius:0 0 2px 2px"></div>
+          
+          <div class="vboard" style="left:30px;top:46px;width:12px;height:150px"></div>
+          <div style="position:absolute;left:48px;top:54px;width:20px;height:15px;border:2px solid var(--sel-line);border-radius:2px"></div>
+          <div style="position:absolute;left:74px;top:84px;font-size:9px;font-weight:800;color:var(--sel-line);line-height:1.35">опора → решается<br>к реальной плоскости<br>(16мм за уступом)</div>
+        </div></div></div>
+        <div class="sheet flow">
+          
+          <div class="selhead" style="padding:0 0 6px"><div class="ti"><svg><use href="#i-steps"/></svg></div><div class="tx"><h3 style="font-size:16px">Умное крепление</h3><div class="role">опора решается к плоскости, что реально касается</div></div></div>
+          <div class="ctl" style="padding:8px 0 0"><div class="k">Высота опоры → подрезка под уступ</div><div class="num"><div class="pm">–</div><div class="v">авто</div><div class="pm">+</div></div></div>
+        </div>
+      </div></div></div>
+      <div class="cap">Умное крепление</div>
+    </div>
+  </div>
+  
+</div>
+
+</body>
+</html>

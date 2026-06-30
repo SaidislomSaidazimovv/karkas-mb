@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+ui/node_modules/
+
+# build output / generated
+ui/dist/
+engine/dist/
+ui/_engine/
+ui/.expo/
+ui/web-build/
+expo-env.d.ts
+
+# misc
+*.log
+.DS_Store
