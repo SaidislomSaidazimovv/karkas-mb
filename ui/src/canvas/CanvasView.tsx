@@ -1,24 +1,27 @@
-// src/canvas/CanvasView.tsx — Zone 4: the 3D cabinet interior + its on-canvas overlays.
-// OWNER: T1. Reads `preview`/`selection`/`mode` from the store and writes back through
-// `tapPart`/`resize`/`divide`. The 3D itself lives in CanvasScene (web=r3f, native=fallback);
-// here we add the RN overlays the frame calls for: info chip, floating handles (↻/↕/⤢),
-// the divide guide, and the HUD. Overlays sit above the canvas with pointerEvents="box-none"
-// so empty taps fall through to the 3D and deselect / select.
-//
-// Pre-S3-E1 note: store.preview is null until the solver lands, so we render DEMO_PREVIEW;
-// the same code renders the real cabinet the moment preview turns non-null. Likewise the
-// structural actions (divide/resize) are stable but stubbed in the store until S3-E1 — the
-// seams below are wired now so they go live with no UI change.
+// src/canvas/CanvasView.tsx — Zone 4: the assembled 3D cabinet + its on-canvas overlays.
+// OWNER: T1. The engine is LIVE (S3-E1): we render the store's `scene` (positioned panels
+// from solveLayout) and write back through real actions:
+//   • tap a panel → tapPart → adaptive selection (group-of-1 / group-of-N) highlights in 3D
+//   • Разделить   → divide(selection.sectionId) → new model → preview/scene re-derive → redraw
+// The 3D lives in CanvasScene (web=r3f, native=fallback); here we add the RN overlays the
+// frame calls for: info chip, floating handles (↻/↕/⤢), the divide guide, and the HUD whose
+// joystick orbits the camera. Overlays use pointerEvents="box-none" so empty taps fall
+// through to the 3D. DEMO_PREVIEW shows only if the live scene is ever empty.
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
 import { C, FONT, R } from "../../theme";
 import { CanvasScene } from "./CanvasScene";
-import { DEMO_PREVIEW, previewToScene } from "./cabinet";
+import { DEMO_PREVIEW, layoutToScene, previewToScene, type Orbit } from "./cabinet";
+
+const AZ_STEP = 0.05; // rad per tick — yaw
+const POL_STEP = 0.04; // rad per tick — pitch
+const POL_MIN = 0.06;
+const POL_MAX = 1.45;
 
 export function CanvasView() {
-  const preview = useApp((s) => s.preview);
+  const sceneData = useApp((s) => s.scene);
   const selection = useApp((s) => s.selection);
   const mode = useApp((s) => s.mode);
   const tapPart = useApp((s) => s.tapPart);
@@ -27,37 +30,43 @@ export function CanvasView() {
   const divide = useApp((s) => s.divide);
   const toggleView = useApp((s) => s.toggleView);
 
-  // Real solver output when present (S3-E1+), else the demo carcass so the viewport lives.
-  const scene = useMemo(() => previewToScene(preview ?? DEMO_PREVIEW), [preview]);
+  // Live assembled cabinet; demo carcass only if the store scene is somehow empty.
+  const scene = useMemo(
+    () => (sceneData.length > 0 ? layoutToScene(sceneData) : previewToScene(DEMO_PREVIEW)),
+    [sceneData],
+  );
+
+  const [orbit, setOrbit] = useState<Orbit>([0.5, 0.6]);
+
   const hasSel = selection.kind !== "none";
   const selPart = selection.partIds[0];
+  const selBoard = selPart ? scene.boards.find((b) => b.id === selPart) : undefined;
 
-  // ── seams to the store (stable signatures; engine wiring = S3-E1) ──
+  // ── seams to the store ──
   const onResize = () => {
-    if (!selPart) return;
-    const b = scene.boards.find((x) => x.id === selPart);
-    if (!b) return;
-    // Tangible nudge: grow depth by 10mm. Absolute value in mm10 (metres*10000).
-    resize(selPart, "z", Math.round(b.size[2] * 10_000) + 100);
+    if (!selBoard) return;
+    // Tangible nudge: grow depth by 10mm (absolute mm10 = metres*10000). Wires resize; the
+    // engine resize op lands in an S3-E1 follow-up, then this is a live edit.
+    resize(selBoard.id, "z", Math.round(selBoard.size[2] * 10_000) + 100);
   };
   const onDivide = () => {
-    if (!selPart) return;
-    // TODO S3-E1: the selected Section comes from selectByTap (selection has no sectionId
-    // in the contract yet). Until then we pass a derived placeholder — the stub ignores it,
-    // and once the store maps selection→section this becomes a real vertical split.
-    divide(`section-of-${selPart}`, { axis: "x", rule: "manual" });
+    // Real split now: selection carries the leaf sectionId → engine divide → scene redraws.
+    if (!selection.sectionId) return;
+    divide(selection.sectionId, { axis: "x", rule: "manual" });
   };
 
   return (
     <View style={styles.canvas}>
-      <CanvasScene scene={scene} selectedIds={selection.partIds} onTapPart={tapPart} />
+      <CanvasScene scene={scene} selectedIds={selection.partIds} onTapPart={tapPart} orbit={orbit} />
 
       {/* Overlay layer — taps pass through to the 3D except on the controls below. */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        {/* Info chip (Zone 4) */}
+        {/* Info chip */}
         {hasSel && (
           <View style={styles.chip}>
-            <Text style={styles.chipT}>{selection.isUnique ? "Уникальная деталь" : "Тип"}</Text>
+            <Text style={styles.chipT}>
+              {selBoard?.name ?? (selection.isUnique ? "Деталь" : "Тип")}
+            </Text>
             <Text style={styles.chipS}>
               {selection.isUnique
                 ? "своя деталь"
@@ -75,8 +84,8 @@ export function CanvasView() {
           </View>
         )}
 
-        {/* Divide gesture (Build mode) — center guide + action. */}
-        {hasSel && mode === "build" && (
+        {/* Divide gesture (Build mode, real split needs a leaf section). */}
+        {hasSel && mode === "build" && selection.sectionId && (
           <>
             <View style={styles.divGuide} pointerEvents="none" />
             <Pressable style={styles.divBtn} onPress={onDivide}>
@@ -91,14 +100,32 @@ export function CanvasView() {
             <HudBtn glyph="◰" onPress={() => toggleView("geometry")} />
             <HudBtn glyph="⊘" onPress={clearSelection} dark />
           </View>
-          {/* Joystick — visual placeholder for camera orbit (S3 follow-up). */}
-          <View style={styles.joy} pointerEvents="none">
-            <Text style={[styles.joyAr, styles.joyUp]}>▲</Text>
-            <Text style={[styles.joyAr, styles.joyDn]}>▼</Text>
-            <Text style={[styles.joyAr, styles.joyLf]}>◀</Text>
-            <Text style={[styles.joyAr, styles.joyRt]}>▶</Text>
-            <View style={styles.knob} />
+
+          {/* Joystick — press-and-hold to orbit the camera around the cabinet. */}
+          <View style={styles.joy} pointerEvents="box-none">
+            <JoyArrow
+              style={styles.joyUp}
+              glyph="▲"
+              onChange={() => setOrbit(([p, a]) => [clamp(p + POL_STEP, POL_MIN, POL_MAX), a])}
+            />
+            <JoyArrow
+              style={styles.joyDn}
+              glyph="▼"
+              onChange={() => setOrbit(([p, a]) => [clamp(p - POL_STEP, POL_MIN, POL_MAX), a])}
+            />
+            <JoyArrow
+              style={styles.joyLf}
+              glyph="◀"
+              onChange={() => setOrbit(([p, a]) => [p, a - AZ_STEP])}
+            />
+            <JoyArrow
+              style={styles.joyRt}
+              glyph="▶"
+              onChange={() => setOrbit(([p, a]) => [p, a + AZ_STEP])}
+            />
+            <View style={styles.knob} pointerEvents="none" />
           </View>
+
           {/* Undo/redo — placeholders until the store grows a history (S3 follow-up). */}
           <View style={[styles.hudCluster, styles.hudRight]}>
             <HudBtn glyph="↶" onPress={() => {}} dim />
@@ -110,11 +137,47 @@ export function CanvasView() {
   );
 }
 
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
 function plural(n: number): string {
   const m10 = n % 10, m100 = n % 100;
   if (m10 === 1 && m100 !== 11) return "деталь";
   if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return "детали";
   return "деталей";
+}
+
+/** A joystick arrow that fires `onChange` continuously while held. */
+function JoyArrow({
+  glyph,
+  style,
+  onChange,
+}: {
+  glyph: string;
+  style: object;
+  onChange: () => void;
+}) {
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stop = () => {
+    if (timer.current) {
+      clearInterval(timer.current);
+      timer.current = null;
+    }
+  };
+  useEffect(() => stop, []);
+  return (
+    <Pressable
+      style={[styles.joyAr, style]}
+      onPressIn={() => {
+        onChange();
+        timer.current = setInterval(onChange, 30);
+      }}
+      onPressOut={stop}
+    >
+      <Text style={styles.joyArT}>{glyph}</Text>
+    </Pressable>
+  );
 }
 
 function Handle({ glyph, onPress }: { glyph: string; onPress: () => void }) {
@@ -243,9 +306,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   knob: { width: 38, height: 38, borderRadius: 999, backgroundColor: "#fff" },
-  joyAr: { position: "absolute", color: "#9a9a98", fontSize: 13 },
-  joyUp: { top: 6 },
-  joyDn: { bottom: 6 },
-  joyLf: { left: 9 },
-  joyRt: { right: 9 },
+  joyAr: {
+    position: "absolute",
+    width: 26,
+    height: 26,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  joyArT: { color: "#9a9a98", fontSize: 13 },
+  joyUp: { top: 4, left: "50%", marginLeft: -13 },
+  joyDn: { bottom: 4, left: "50%", marginLeft: -13 },
+  joyLf: { left: 6, top: "50%", marginTop: -13 },
+  joyRt: { right: 6, top: "50%", marginTop: -13 },
 });

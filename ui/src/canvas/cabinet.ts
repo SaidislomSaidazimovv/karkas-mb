@@ -1,19 +1,20 @@
-// src/canvas/cabinet.ts — engine PreviewResult → r3f-ready boards. OWNER: T1.
+// src/canvas/cabinet.ts — engine geometry → r3f-ready boards. OWNER: T1.
 //
-// The seam: while the solver is not wired yet (store.preview === null until S3-E1),
-// DEMO_PREVIEW gives the viewport something real to render + select. The SAME mapping
-// (previewToScene) draws the live solver output the instant store.preview turns non-null,
-// so the canvas lights up with zero rework. We never reach into the engine beyond the
-// PreviewResult type, which arrives through the engineBridge seam.
+// The viewport renders the store's live `scene` (PanelPlacement[] from solveLayout): the
+// assembled cabinet, positioned panels with ids that match selection.partIds 1:1. When the
+// scene is empty we fall back to DEMO_PREVIEW so the canvas is never blank. Both paths feed
+// the SAME centring core (boxesToScene), so selection highlight + camera framing behave
+// identically. We never reach into the engine beyond the types arriving via engineBridge.
 
-import type { PreviewResult } from "../../engineBridge";
+import type { PanelPlacement, PreviewResult } from "../../engineBridge";
 
 /** One preview part (derived from the seam type so we don't widen the engineBridge surface). */
 type PreviewPart = PreviewResult["parts"][number];
 
-/** A render-ready box: centre + half-agnostic full size, in metres (three.js units). */
+/** A render-ready box: centre + full size, in metres (three.js units). */
 export interface Board {
   id: string;
+  name?: string;
   /** centre position [x, y, z] in metres */
   pos: [number, number, number];
   /** full size [w, h, d] in metres */
@@ -28,55 +29,83 @@ export interface Scene {
   radius: number;
 }
 
+/** Camera orbit angles (radians): [polar (pitch, around X), azimuth (yaw, around Y)]. */
+export type Orbit = [number, number];
+
 /** Props shared by the web (r3f) and native (fallback) scene renderers. */
 export interface CanvasSceneProps {
   scene: Scene;
   selectedIds: readonly string[];
   onTapPart: (id: string) => void;
+  orbit: Orbit;
 }
 
 /** mm10 (tenths of a millimetre) → metres. 16mm board = 160 mm10 = 0.016 m. */
 const M = (mm10: number) => mm10 / 10_000;
 
+/** A min-corner box in mm10 — the common shape of both a PreviewPart and a PanelPlacement. */
+interface RawBox {
+  id: string;
+  name?: string;
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+  h: number;
+  d: number;
+}
+
 /**
- * Map the engine preview to centred, metre-scaled boards. PreviewPart.bbox carries the
- * min-corner (x,y,z) and full size (w,h,d) in mm10; three.js boxes are centred, so we add
- * half-size. The cabinet is recentred on X/Z and stood on the floor (minY → 0).
+ * Centre + metre-scale a set of min-corner mm10 boxes. three.js boxes are centred, so we add
+ * half-size; the cabinet is recentred on X/Z and stood on the floor (minY → 0).
  */
-export function previewToScene(preview: PreviewResult): Scene {
-  const parts = preview.parts;
-  if (parts.length === 0) return { boards: [], center: [0, 0, 0], radius: 1 };
+function boxesToScene(boxes: RawBox[]): Scene {
+  if (boxes.length === 0) return { boards: [], center: [0, 0, 0], radius: 1 };
 
   let minX = Infinity, minY = Infinity, minZ = Infinity;
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-  for (const p of parts) {
-    const b = p.bbox;
+  for (const b of boxes) {
     minX = Math.min(minX, b.x); maxX = Math.max(maxX, b.x + b.w);
     minY = Math.min(minY, b.y); maxY = Math.max(maxY, b.y + b.h);
     minZ = Math.min(minZ, b.z); maxZ = Math.max(maxZ, b.z + b.d);
   }
-  // Recentre: X/Z about the middle, Y so the cabinet stands on the floor.
   const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
-  const boards: Board[] = parts.map((p: PreviewPart) => {
-    const b = p.bbox;
-    return {
-      id: p.id,
-      pos: [M(b.x + b.w / 2 - cx), M(b.y + b.h / 2 - minY), M(b.z + b.d / 2 - cz)],
-      size: [M(b.w), M(b.h), M(b.d)],
-    };
-  });
+  const boards: Board[] = boxes.map((b) => ({
+    id: b.id,
+    name: b.name,
+    pos: [M(b.x + b.w / 2 - cx), M(b.y + b.h / 2 - minY), M(b.z + b.d / 2 - cz)],
+    size: [M(b.w), M(b.h), M(b.d)],
+  }));
   const w = M(maxX - minX), h = M(maxY - minY), d = M(maxZ - minZ);
-  return {
-    boards,
-    center: [0, h / 2, 0],
-    radius: Math.max(w, h, d),
-  };
+  return { boards, center: [0, h / 2, 0], radius: Math.max(w, h, d) };
+}
+
+/** Live path: the assembled cabinet from the store (solveLayout → positioned panels). */
+export function layoutToScene(panels: readonly PanelPlacement[]): Scene {
+  return boxesToScene(
+    panels.map((p) => ({
+      id: p.id,
+      name: p.name,
+      x: p.x_mm10, y: p.y_mm10, z: p.z_mm10,
+      w: p.w_mm10, h: p.h_mm10, d: p.d_mm10,
+    })),
+  );
+}
+
+/** Fallback path: the static preview bboxes (used only when the live scene is empty). */
+export function previewToScene(preview: PreviewResult): Scene {
+  return boxesToScene(
+    preview.parts.map((p: PreviewPart) => ({
+      id: p.id,
+      x: p.bbox.x, y: p.bbox.y, z: p.bbox.z,
+      w: p.bbox.w, h: p.bbox.h, d: p.bbox.d,
+    })),
+  );
 }
 
 // ---------------------------------------------------------------------------
-// DEMO cabinet (placeholder until S3-E1 feeds a real preview). A plain 800×1800×400mm
-// carcass with a 6mm back and two shelves — enough to exercise tap-select + handles.
-// Each id is a stable string so selection round-trips through the store.
+// DEMO cabinet — fallback only (the store boots a real model, so this rarely shows).
+// A plain 800×1800×400mm carcass with a 6mm back and two shelves.
 // ---------------------------------------------------------------------------
 
 const W = 8000;   // 800mm outer width  (mm10)

@@ -1,19 +1,21 @@
 // src/sheets/SelectionSheet.tsx — Zone 3 (adaptive selection card / bottom-sheet). OWNER: T2.
 //
+// S3-T2B: header NAME + dimensions now come from the LIVE engine — the selected part's
+// Component.name (store.model) and its placed size (store.scene), no more local-only fallback.
+// Steppers call store.resize / store.detach (engine resize op lands in a later slice; the call
+// is wired now, the display is optimistic and re-seeds from the real scene on each selection).
+//
 // v3 §1 adaptive model:
 //   • group-of-1 (isUnique) → «Уникальная деталь» — direct edit, NO detach, NO ✂ counter
-//   • group-of-N (real group) → «Тип · N деталей» — edit travels, «связаны» + «✂ N», «Отделить»
+//   • group-of-N → «Тип · N деталей» — edit travels, «связаны» + «✂ N», «Отделить»
 //   • first edit of a fresh group → one-time «связать / каждая своя» choice (#36, ledger #14)
-// Body switches by mode (L7): Build numeric · Material catalog · Hardware segment · Frame doubling.
+// Body switches by mode (L7). Material/Hardware/Frame controls are design placeholders until
+// their engine backing (S3-E5/E6); their header shows the real selected part name.
 // design: construction-v3-preview.html §3 + §5.
-//
-// NOTE (S3-E1 gap): part name + real dimensions come from the engine model/preview, which is
-// null in E0. Until the solver lands, the header name falls back to the selection id and the
-// numeric fields hold local display state; edits already call the store actions (resize/detach),
-// whose engine effect wires in S3-E1.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
+import type { PanelPlacement, StructuralModel } from "../../engineBridge";
 import { C, FONT } from "../../theme";
 import {
   Grab, SheetHeader, Badge, NumberStepper, Segment, Toggle, MenuRow, ListRow, sheetBase,
@@ -25,15 +27,39 @@ const MATERIAL_CATALOG = [
   { id: "white", name: "ЛДСП Белый", sub: "покрытие · 16 мм", swatch: "#EFEEEA" },
 ];
 
+function componentName(model: StructuralModel | null, componentId?: string): string | null {
+  if (!model || !componentId) return null;
+  for (const b of model.blocks) {
+    const c = b.components.find((x) => x.id === componentId);
+    if (c) return c.name;
+  }
+  return null;
+}
+
 export function SelectionSheet() {
+  const model = useApp((s) => s.model);
+  const scene = useApp((s) => s.scene);
   const selection = useApp((s) => s.selection);
   const mode = useApp((s) => s.mode);
   const resize = useApp((s) => s.resize);
   const detach = useApp((s) => s.detach);
 
-  // local display state (real values arrive from model/preview in S3-E1)
-  const [width, setWidth] = useState(980);
-  const [depth, setDepth] = useState(320);
+  const partId = selection.partIds[0];
+  const placement: PanelPlacement | undefined = scene.find((p) => p.id === partId);
+  const name = componentName(model, selection.componentId) ?? placement?.name ?? "Деталь";
+
+  // real placed size (mm) — the source of truth; steppers seed from this per selection
+  const wReal = placement ? Math.round(placement.w_mm10 / 10) : 0;
+  const dReal = placement ? Math.round(placement.d_mm10 / 10) : 0;
+
+  // optimistic edit overrides; reset to real whenever the selected part changes
+  const [wOver, setWOver] = useState<number | null>(null);
+  const [dOver, setDOver] = useState<number | null>(null);
+  useEffect(() => { setWOver(null); setDOver(null); }, [partId]);
+  const width = wOver ?? wReal;
+  const depth = dOver ?? dReal;
+
+  // local UI state for placeholder modes
   const [hw, setHw] = useState<"hinge" | "handle" | "slide">("hinge");
   const [material, setMaterial] = useState("oak-sonoma");
   const [partial, setPartial] = useState(true);
@@ -47,7 +73,6 @@ export function SelectionSheet() {
   const isGroup = selection.kind === "group" && !selection.isUnique;
   const count = selection.partIds.length;
   const cid = selection.componentId;
-  const partId = selection.partIds[0];
   const instId = selection.instanceIds[0];
 
   // gate a fresh real group's first edit behind the one-time choice
@@ -58,10 +83,8 @@ export function SelectionSheet() {
     }
     apply();
   };
-  const resolveChoice = (keepLinked: boolean) => {
+  const resolveChoice = () => {
     if (cid) setChosen((prev) => new Set(prev).add(cid));
-    // "each differs" dissolves the group into unique parts — engine-side (S3-E1). Mark chosen so
-    // the prompt never re-fires; the dissolve itself lands when selectByTap is wired.
     pending?.();
     setPending(null);
   };
@@ -71,21 +94,10 @@ export function SelectionSheet() {
     return (
       <View style={[sheetBase, styles.over]}>
         <Grab />
-        <SheetHeader icon="link" title={`Новая группа · ${count} полок`} role="Первая правка — как ведём?" />
+        <SheetHeader icon="link" title={`Новая группа · ${count} деталей`} role="Первая правка — как ведём?" />
         <Text style={styles.hint}>Один раз. Запомним выбор.</Text>
-        <MenuRow
-          icon="link"
-          title="Держать связанными"
-          sub={`правка одной → всем ${count} (как тип)`}
-          trailing="check"
-          onPress={() => resolveChoice(true)}
-        />
-        <MenuRow
-          icon="cut"
-          title="Каждая будет своя"
-          sub={`группа распадётся → ${count} уникальных, без тах`}
-          onPress={() => resolveChoice(false)}
-        />
+        <MenuRow icon="link" title="Держать связанными" sub={`правка одной → всем ${count} (как тип)`} trailing="check" onPress={resolveChoice} />
+        <MenuRow icon="cut" title="Каждая будет своя" sub={`группа распадётся → ${count} уникальных, без тах`} onPress={resolveChoice} />
       </View>
     );
   }
@@ -95,42 +107,36 @@ export function SelectionSheet() {
       <Grab />
       {mode === "build" && (
         <BuildBody
+          name={name}
           isGroup={isGroup}
           count={count}
           exceptions={selection.exceptions}
           width={width}
           depth={depth}
-          onWidth={(v) => guard(() => { setWidth(v); if (partId) resize(partId, "x", v * 10); })}
-          onDepth={(v) => guard(() => { setDepth(v); if (partId) resize(partId, "z", v * 10); })}
+          onWidth={(v) => guard(() => { setWOver(v); if (partId) resize(partId, "x", v * 10); })}
+          onDepth={(v) => guard(() => { setDOver(v); if (partId) resize(partId, "z", v * 10); })}
           onDetach={() => { if (instId) detach(instId); }}
         />
       )}
-      {mode === "material" && (
-        <MaterialBody selected={material} onSelect={setMaterial} />
-      )}
-      {mode === "hardware" && (
-        <HardwareBody value={hw} onChange={setHw} />
-      )}
-      {mode === "frame" && (
-        <FrameBody partial={partial} onPartial={setPartial} />
-      )}
+      {mode === "material" && <MaterialBody selected={material} onSelect={setMaterial} />}
+      {mode === "hardware" && <HardwareBody name={name} value={hw} onChange={setHw} />}
+      {mode === "frame" && <FrameBody name={name} partial={partial} onPartial={setPartial} />}
     </View>
   );
 }
 
 /* ===================== BUILD ===================== */
 function BuildBody({
-  isGroup, count, exceptions, width, depth, onWidth, onDepth, onDetach,
+  name, isGroup, count, exceptions, width, depth, onWidth, onDepth, onDetach,
 }: {
-  isGroup: boolean; count: number; exceptions: number;
+  name: string; isGroup: boolean; count: number; exceptions: number;
   width: number; depth: number;
   onWidth: (v: number) => void; onDepth: (v: number) => void; onDetach: () => void;
 }) {
   if (!isGroup) {
-    // group-of-1 — Уникальная деталь
     return (
       <>
-        <SheetHeader icon="select" title="Полка-платье" role="Уникальная деталь">
+        <SheetHeader icon="select" title={name} role="Уникальная деталь">
           <Badge icon="check" label="прямое редактирование" tone="ok" />
         </SheetHeader>
         <NumberStepper label="Ширина" value_mm={width} onChange={onWidth} />
@@ -139,26 +145,19 @@ function BuildBody({
       </>
     );
   }
-  // group-of-N — Тип · N деталей
   return (
     <>
-      <SheetHeader icon="link" title="Полка-обувь" role={`Тип · ${count} детали выделено`} roleColor={C.selLine}>
+      <SheetHeader icon="link" title={name} role={`Тип · ${count} детали выделено`} roleColor={C.selLine}>
         <Badge icon="link" label="связаны" tone="link" />
         <Badge icon="cut" label={`✂ ${exceptions}`} tone="cut" />
       </SheetHeader>
       <NumberStepper label={`Глубина (применится ко всем ${count})`} value_mm={depth} onChange={onDepth} />
-      <MenuRow
-        icon="cut"
-        title="Отделить эту деталь"
-        sub="правка локальная · ✂ +1"
-        danger
-        onPress={onDetach}
-      />
+      <MenuRow icon="cut" title="Отделить эту деталь" sub="правка локальная · ✂ +1" danger onPress={onDetach} />
     </>
   );
 }
 
-/* ===================== MATERIAL ===================== */
+/* ===================== MATERIAL (placeholder body — engine: S3-E5) ===================== */
 function MaterialBody({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) {
   return (
     <>
@@ -169,26 +168,19 @@ function MaterialBody({ selected, onSelect }: { selected: string; onSelect: (id:
         </View>
       </View>
       {MATERIAL_CATALOG.map((m) => (
-        <ListRow
-          key={m.id}
-          swatch={m.swatch}
-          title={m.name}
-          sub={m.sub}
-          selected={m.id === selected}
-          onPress={() => onSelect(m.id)}
-        />
+        <ListRow key={m.id} swatch={m.swatch} title={m.name} sub={m.sub} selected={m.id === selected} onPress={() => onSelect(m.id)} />
       ))}
     </>
   );
 }
 
-/* ===================== HARDWARE ===================== */
+/* ===================== HARDWARE (placeholder body — engine: S3-E6) ===================== */
 function HardwareBody({
-  value, onChange,
-}: { value: "hinge" | "handle" | "slide"; onChange: (k: "hinge" | "handle" | "slide") => void }) {
+  name, value, onChange,
+}: { name: string; value: "hinge" | "handle" | "slide"; onChange: (k: "hinge" | "handle" | "slide") => void }) {
   return (
     <>
-      <SheetHeader icon="hinge" title="Дверь-фасад" role="2 петли · накладная" />
+      <SheetHeader icon="hinge" title={name} role="2 петли · накладная" />
       <View style={{ paddingVertical: 6 }}>
         <Segment
           value={value}
@@ -204,11 +196,11 @@ function HardwareBody({
   );
 }
 
-/* ===================== FRAME ===================== */
-function FrameBody({ partial, onPartial }: { partial: boolean; onPartial: (v: boolean) => void }) {
+/* ===================== FRAME (placeholder body — engine: S3-E6) ===================== */
+function FrameBody({ name, partial, onPartial }: { name: string; partial: boolean; onPartial: (v: boolean) => void }) {
   return (
     <>
-      <SheetHeader icon="double" title="Столешница" role="⧉ удвоение · 32 мм фронт">
+      <SheetHeader icon="double" title={name} role="⧉ удвоение · 32 мм фронт">
         <Badge icon="double" label="2 слоя" tone="comp" />
         <Badge label="кромка 32мм" tone="neutral" />
         <Badge icon="warn" label="риск" tone="warn" />

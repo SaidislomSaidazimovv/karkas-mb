@@ -120,7 +120,7 @@ describe("S3-E1 buildDemoModel — starter cabinet renders end-to-end", () => {
   it("produces a non-empty preview (the UI renders this)", () => {
     const parts = solveStructure(buildDemoModel());
     const preview = solvePreview({ id: "demo", name: "Демо", parts });
-    expect(preview.parts).toHaveLength(8);
+    expect(preview.parts).toHaveLength(9);
     for (const p of preview.parts) {
       expect(p.bbox.w).toBeGreaterThan(0);
       expect(p.bbox.h).toBeGreaterThan(0);
