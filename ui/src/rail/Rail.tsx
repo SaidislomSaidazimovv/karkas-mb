@@ -18,6 +18,7 @@ const MODES: { key: Mode; glyph: string }[] = [
 
 const LENSES: { key: ViewLens; glyph: string }[] = [
   { key: "geometry", glyph: "◰" },
+  { key: "lines", glyph: "≣" },
   { key: "glass", glyph: "◇" },
   { key: "dimension", glyph: "⊏" },
 ];

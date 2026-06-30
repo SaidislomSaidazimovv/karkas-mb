@@ -38,8 +38,24 @@ export interface CanvasSceneProps {
   selectedIds: readonly string[];
   onTapPart: (id: string) => void;
   orbit: Orbit;
+  /** Active view lenses (rail toggles): "glass" → translucent, "lines" → edge overlay. */
+  lenses: readonly string[];
   /** Drag on empty space → relative camera orbit (radians). Web only; native ignores it. */
   onOrbitDelta?: (dPol: number, dAz: number) => void;
+}
+
+/** Overall cabinet size in millimetres — for the "dimension" view lens readout. */
+export function sceneDimsMm(scene: Scene): { w: number; h: number; d: number } {
+  if (scene.boards.length === 0) return { w: 0, h: 0, d: 0 };
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (const b of scene.boards) {
+    minX = Math.min(minX, b.pos[0] - b.size[0] / 2); maxX = Math.max(maxX, b.pos[0] + b.size[0] / 2);
+    minY = Math.min(minY, b.pos[1] - b.size[1] / 2); maxY = Math.max(maxY, b.pos[1] + b.size[1] / 2);
+    minZ = Math.min(minZ, b.pos[2] - b.size[2] / 2); maxZ = Math.max(maxZ, b.pos[2] + b.size[2] / 2);
+  }
+  const mm = (m: number) => Math.round(m * 1000);
+  return { w: mm(maxX - minX), h: mm(maxY - minY), d: mm(maxZ - minZ) };
 }
 
 /** mm10 (tenths of a millimetre) → metres. 16mm board = 160 mm10 = 0.016 m. */

@@ -14,7 +14,7 @@ import { useApp } from "../../store/appStore";
 import { C, FONT, R } from "../../theme";
 import { CanvasScene } from "./CanvasScene";
 import { DivideSheet } from "./DivideSheet";
-import { DEMO_PREVIEW, layoutToScene, previewToScene, type Orbit } from "./cabinet";
+import { DEMO_PREVIEW, layoutToScene, previewToScene, sceneDimsMm, type Orbit } from "./cabinet";
 import type { DivideOpts } from "../../store/appStore";
 
 const AZ_STEP = 0.05; // rad per tick — yaw
@@ -26,11 +26,16 @@ export function CanvasView() {
   const sceneData = useApp((s) => s.scene);
   const selection = useApp((s) => s.selection);
   const mode = useApp((s) => s.mode);
+  const view = useApp((s) => s.view);
+  const past = useApp((s) => s.past);
+  const future = useApp((s) => s.future);
   const tapPart = useApp((s) => s.tapPart);
   const clearSelection = useApp((s) => s.clearSelection);
   const resize = useApp((s) => s.resize);
   const divide = useApp((s) => s.divide);
   const toggleView = useApp((s) => s.toggleView);
+  const undo = useApp((s) => s.undo);
+  const redo = useApp((s) => s.redo);
 
   // Live assembled cabinet; demo carcass only if the store scene is somehow empty.
   const scene = useMemo(
@@ -44,6 +49,11 @@ export function CanvasView() {
   const hasSel = selection.kind !== "none";
   const selPart = selection.partIds[0];
   const selBoard = selPart ? scene.boards.find((b) => b.id === selPart) : undefined;
+  const canUndo = past.length > 0;
+  const canRedo = future.length > 0;
+  const showDims = view.includes("dimension");
+  const dims = useMemo(() => sceneDimsMm(scene), [scene]);
+  const mm = (m: number) => Math.round(m * 1000);
 
   // ── seams to the store ──
   const onResize = () => {
@@ -67,6 +77,7 @@ export function CanvasView() {
         selectedIds={selection.partIds}
         onTapPart={tapPart}
         orbit={orbit}
+        lenses={view}
         onOrbitDelta={onOrbitDelta}
       />
 
@@ -83,6 +94,18 @@ export function CanvasView() {
                 ? "своя деталь"
                 : `${selection.partIds.length} ${plural(selection.partIds.length)} выделено`}
             </Text>
+          </View>
+        )}
+
+        {/* Dimension lens — overall cabinet size (+ selected panel) readout. */}
+        {showDims && (
+          <View style={styles.dimBadge} pointerEvents="none">
+            <Text style={styles.dimT}>{dims.w} × {dims.h} × {dims.d} мм</Text>
+            {selBoard && (
+              <Text style={styles.dimS}>
+                деталь {mm(selBoard.size[0])} × {mm(selBoard.size[1])} × {mm(selBoard.size[2])}
+              </Text>
+            )}
           </View>
         )}
 
@@ -139,10 +162,10 @@ export function CanvasView() {
             <View style={styles.knob} pointerEvents="none" />
           </View>
 
-          {/* Undo/redo — placeholders until the store grows a history (S3 follow-up). */}
+          {/* Undo/redo — wired to the store history; disabled when the stack is empty. */}
           <View style={[styles.hudCluster, styles.hudRight]}>
-            <HudBtn glyph="↶" onPress={() => {}} dim />
-            <HudBtn glyph="↷" onPress={() => {}} dim />
+            <HudBtn glyph="↶" onPress={undo} disabled={!canUndo} />
+            <HudBtn glyph="↷" onPress={redo} disabled={!canRedo} />
           </View>
         </View>
 
@@ -211,15 +234,18 @@ function HudBtn({
   onPress,
   dark,
   dim,
+  disabled,
 }: {
   glyph: string;
   onPress: () => void;
   dark?: boolean;
   dim?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
-      style={[styles.htool, dark && styles.htoolDark, dim && styles.htoolDim]}
+      disabled={disabled}
+      style={[styles.htool, dark && styles.htoolDark, (dim || disabled) && styles.htoolDim]}
       onPress={onPress}
     >
       <Text style={[styles.htoolG, dark && styles.htoolGDark]}>{glyph}</Text>
@@ -248,6 +274,19 @@ const styles = StyleSheet.create({
   },
   chipT: { fontFamily: FONT, fontSize: 13.5, fontWeight: "800", color: C.ink },
   chipS: { fontFamily: FONT, fontSize: 11.5, color: C.ink2, marginTop: 2 },
+
+  dimBadge: {
+    position: "absolute",
+    right: 14,
+    top: 14,
+    backgroundColor: "rgba(28,28,29,0.9)",
+    borderRadius: 11,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    alignItems: "flex-end",
+  },
+  dimT: { fontFamily: FONT, fontSize: 12.5, fontWeight: "800", color: "#fff" },
+  dimS: { fontFamily: FONT, fontSize: 10.5, color: "#cfcdc8", marginTop: 2 },
 
   handles: { position: "absolute", right: 14, top: 120, gap: 12 },
   handle: {

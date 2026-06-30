@@ -2,14 +2,10 @@
 // A bottom sheet over the canvas for splitting the selected leaf section. Maps the chosen mode
 // to the store's DivideOpts → engine divide → model re-derives → the 3D redraws.
 //
-//   • По центру  → ratio [1:1]     (one centred divider)
-//   • Равно N    → equal           (engine splits into equal parts; see note below)
-//   • Свободно   → manual + at_mm10 (one divider at a chosen offset)
+//   • По центру  → ratio [1:1]       (one centred divider)
+//   • Равно N    → equal + count      (engine splits into N equal parts — DivideOpts.count)
+//   • Свободно   → manual + at_mm10   (one divider at a chosen offset)
 //   • axis: Вертикально = "x" (a vertical divider) · Горизонтально = "y" (a horizontal shelf)
-//
-// NOTE for P: DivideOpts has no `count`, so «Равно N» currently lands as the engine's default
-// equal split (2). Exposing real N needs DivideOpts.count threaded to DivideMode — flagged in
-// the kanban. Center + Свободно are fully live today.
 
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
@@ -33,7 +29,7 @@ export function DivideSheet({
 
   const apply = () => {
     if (mode === "center") onApply({ axis, rule: "ratio" });
-    else if (mode === "equal") onApply({ axis, rule: "equal" });
+    else if (mode === "equal") onApply({ axis, rule: "equal", count });
     else onApply({ axis, rule: "manual", at_mm10: posMm * 10 });
   };
 

@@ -13,7 +13,9 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import {
   ACESFilmicToneMapping,
   BackSide,
+  BoxGeometry,
   CanvasTexture,
+  EdgesGeometry,
   RepeatWrapping,
   SRGBColorSpace,
 } from "three";
@@ -68,11 +70,18 @@ function makeWoodTexture(): CanvasTexture {
   return tex;
 }
 
-export function CanvasScene({ scene, selectedIds, onTapPart, orbit, onOrbitDelta }: CanvasSceneProps) {
+export function CanvasScene({ scene, selectedIds, onTapPart, orbit, lenses, onOrbitDelta }: CanvasSceneProps) {
   const sel = new Set(selectedIds);
   const dist = Math.max(scene.radius, 0.3) * 1.7 + 0.4;
   const floorY = -scene.center[1]; // cabinet is centred at the origin → floor sits below it
   const wood = useMemo(makeWoodTexture, []);
+  const glass = lenses.includes("glass"); // translucent panels
+  const lines = lenses.includes("lines"); // crisp edge overlay
+  // Edge geometries (one per board) for the "lines" lens — memoised so we don't rebuild each frame.
+  const edges = useMemo(
+    () => scene.boards.map((b) => new EdgesGeometry(new BoxGeometry(b.size[0], b.size[1], b.size[2]))),
+    [scene.boards],
+  );
 
   // Drag empty space to orbit: track the last pointer position, report deltas as radians.
   const drag = useRef<{ x: number; y: number } | null>(null);
@@ -132,29 +141,37 @@ export function CanvasScene({ scene, selectedIds, onTapPart, orbit, onOrbitDelta
 
       {/* Cabinet — shifted so its centre is the origin the camera orbits. */}
       <group position={[-scene.center[0], -scene.center[1], -scene.center[2]]}>
-        {scene.boards.map((b) => {
+        {scene.boards.map((b, i) => {
           const on = sel.has(b.id);
           return (
-            <mesh
-              key={b.id}
-              position={b.pos}
-              castShadow
-              receiveShadow
-              onClick={(e) => {
-                e.stopPropagation();
-                onTapPart(b.id);
-              }}
-            >
-              <boxGeometry args={b.size} />
-              <meshStandardMaterial
-                map={wood}
-                color={on ? C.sel : "#ffffff"}
-                emissive={on ? C.selLine : "#000000"}
-                emissiveIntensity={on ? 0.3 : 0}
-                roughness={0.62}
-                metalness={0.04}
-              />
-            </mesh>
+            <group key={b.id} position={b.pos}>
+              <mesh
+                castShadow
+                receiveShadow
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTapPart(b.id);
+                }}
+              >
+                <boxGeometry args={b.size} />
+                <meshStandardMaterial
+                  map={wood}
+                  color={on ? C.sel : "#ffffff"}
+                  emissive={on ? C.selLine : "#000000"}
+                  emissiveIntensity={on ? 0.3 : 0}
+                  roughness={0.62}
+                  metalness={0.04}
+                  transparent={glass}
+                  opacity={glass ? 0.42 : 1}
+                />
+              </mesh>
+              {/* "lines" lens — outline every panel (technical / blueprint read). */}
+              {lines && (
+                <lineSegments geometry={edges[i]}>
+                  <lineBasicMaterial color={on ? C.selLine : "#3a352c"} />
+                </lineSegments>
+              )}
+            </group>
           );
         })}
       </group>
