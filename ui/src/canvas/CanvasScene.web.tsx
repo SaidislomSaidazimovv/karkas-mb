@@ -70,8 +70,9 @@ function makeWoodTexture(): CanvasTexture {
   return tex;
 }
 
-export function CanvasScene({ scene, selectedIds, onTapPart, orbit, lenses, onOrbitDelta }: CanvasSceneProps) {
+export function CanvasScene({ scene, selectedIds, onTapPart, orbit, lenses, hiddenIds, onOrbitDelta }: CanvasSceneProps) {
   const sel = new Set(selectedIds);
+  const hidden = new Set(hiddenIds); // boards toggled off in Zone 5 — skipped below (view-only)
   const dist = Math.max(scene.radius, 0.3) * 1.7 + 0.4;
   const floorY = -scene.center[1]; // cabinet is centred at the origin → floor sits below it
   const wood = useMemo(makeWoodTexture, []);
@@ -142,6 +143,7 @@ export function CanvasScene({ scene, selectedIds, onTapPart, orbit, lenses, onOr
       {/* Cabinet — shifted so its centre is the origin the camera orbits. */}
       <group position={[-scene.center[0], -scene.center[1], -scene.center[2]]}>
         {scene.boards.map((b, i) => {
+          if (hidden.has(b.id)) return null; // eye toggled off — drop from the view (export keeps it)
           const on = sel.has(b.id);
           return (
             <group key={b.id} position={b.pos}>

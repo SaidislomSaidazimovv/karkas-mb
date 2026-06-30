@@ -29,6 +29,7 @@ export function CanvasView() {
   const view = useApp((s) => s.view);
   const past = useApp((s) => s.past);
   const future = useApp((s) => s.future);
+  const hiddenIds = useApp((s) => s.hiddenIds);
   const tapPart = useApp((s) => s.tapPart);
   const clearSelection = useApp((s) => s.clearSelection);
   const resize = useApp((s) => s.resize);
@@ -78,6 +79,7 @@ export function CanvasView() {
         onTapPart={tapPart}
         orbit={orbit}
         lenses={view}
+        hiddenIds={hiddenIds}
         onOrbitDelta={onOrbitDelta}
       />
 

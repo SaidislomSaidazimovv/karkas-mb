@@ -40,6 +40,8 @@ export interface CanvasSceneProps {
   orbit: Orbit;
   /** Active view lenses (rail toggles): "glass" → translucent, "lines" → edge overlay. */
   lenses: readonly string[];
+  /** Part ids toggled off in Zone 5 (eye) — skipped in the 3D render. View-only, NOT export. */
+  hiddenIds: readonly string[];
   /** Drag on empty space → relative camera orbit (radians). Web only; native ignores it. */
   onOrbitDelta?: (dPol: number, dAz: number) => void;
 }
