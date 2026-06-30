@@ -157,6 +157,8 @@ export interface AppState {
   price_sum: number;
   preview: PreviewResult | null;
   scene: readonly PanelPlacement[]; // positioned panels for the 3D viewport (T1 renders this)
+  past: readonly StructuralModel[]; // undo stack (T1 HUD: enabled when past.length > 0)
+  future: readonly StructuralModel[]; // redo stack
 
   tapPart(partId: PartId): void;
   clearSelection(): void;
@@ -169,6 +171,28 @@ export interface AppState {
   detach(instanceId: InstanceId): void;
   reattach(instanceId: InstanceId): void;
   merge(sectionIds: readonly SectionId[]): void;
+  undo(): void;
+  redo(): void;
+}
+
+const HISTORY_CAP = 50;
+
+/** Apply a structural edit: push the current model onto the undo stack, clear redo,
+ *  swap in the new model, and re-derive preview/scene/price. */
+function applyEdit(
+  get: () => AppState,
+  set: (partial: Partial<AppState>) => void,
+  next: StructuralModel,
+  keepSelection: boolean,
+): void {
+  const cur = get().model;
+  set({
+    past: cur ? [...get().past, cur].slice(-HISTORY_CAP) : get().past,
+    future: [],
+    model: next,
+    selection: keepSelection ? reselect(next, get().selection) : NO_SELECTION,
+    ...derive(next),
+  });
 }
 
 const INITIAL_MODEL = buildDemoModel();
@@ -178,6 +202,8 @@ export const useApp = create<AppState>((set, get) => ({
   selection: NO_SELECTION,
   mode: "build",
   view: ["geometry"],
+  past: [],
+  future: [],
   ...derive(INITIAL_MODEL),
 
   tapPart(partId) {
@@ -196,14 +222,14 @@ export const useApp = create<AppState>((set, get) => ({
     set({ view: v.includes(lens) ? v.filter((l) => l !== lens) : [...v, lens] });
   },
 
-  // Structural edits — call the engine op → new model → re-derive preview/price in one place.
+  // Structural edits — engine op → new model → applyEdit (history + re-derive in one place).
   divide(sectionId, opts) {
     const m = get().model;
     if (!m) return;
     try {
       const next = divideSection(m, sectionId, toDivideMode(opts));
       if (next === m) return; // engine no-op
-      set({ model: next, selection: NO_SELECTION, ...derive(next) });
+      applyEdit(get, set, next, false);
     } catch {
       /* invalid divide (e.g. non-leaf) — ignore; UI guards normally prevent this */
     }
@@ -214,7 +240,7 @@ export const useApp = create<AppState>((set, get) => ({
     try {
       const next = engineMoveLine(m, lineId, delta_mm10, scope);
       if (next === m) return;
-      set({ model: next, selection: reselect(next, get().selection), ...derive(next) });
+      applyEdit(get, set, next, true);
     } catch {
       /* ignore */
     }
@@ -228,7 +254,7 @@ export const useApp = create<AppState>((set, get) => ({
     try {
       const next = addInstance(m, sectionId, kind);
       if (next === m) return; // unsupported kind → no-op
-      set({ model: next, selection: NO_SELECTION, ...derive(next) });
+      applyEdit(get, set, next, false);
     } catch {
       /* ignore (e.g. non-leaf section) */
     }
@@ -237,8 +263,7 @@ export const useApp = create<AppState>((set, get) => ({
     const m = get().model;
     if (!m) return;
     try {
-      const next = detachInstance(m, instanceId);
-      set({ model: next, selection: reselect(next, get().selection), ...derive(next) });
+      applyEdit(get, set, detachInstance(m, instanceId), true);
     } catch {
       /* ignore */
     }
@@ -247,13 +272,37 @@ export const useApp = create<AppState>((set, get) => ({
     const m = get().model;
     if (!m) return;
     try {
-      const next = reattachInstance(m, instanceId);
-      set({ model: next, selection: reselect(next, get().selection), ...derive(next) });
+      applyEdit(get, set, reattachInstance(m, instanceId), true);
     } catch {
       /* ignore */
     }
   },
   merge(_sectionIds) {
     /* TODO S3-E3: mergeSections — blocker #2 (engine op not built yet) */
+  },
+
+  undo() {
+    const { past, model } = get();
+    if (past.length === 0 || !model) return;
+    const prev = past[past.length - 1]!;
+    set({
+      past: past.slice(0, -1),
+      future: [model, ...get().future],
+      model: prev,
+      selection: NO_SELECTION,
+      ...derive(prev),
+    });
+  },
+  redo() {
+    const { future, model } = get();
+    if (future.length === 0 || !model) return;
+    const nx = future[0]!;
+    set({
+      future: future.slice(1),
+      past: [...get().past, model],
+      model: nx,
+      selection: NO_SELECTION,
+      ...derive(nx),
+    });
   },
 }));
