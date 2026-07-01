@@ -138,6 +138,11 @@ function TreeRow({
 
 const styles = StyleSheet.create({
   panel: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 84, // clears the bottom toolbar — floats over the canvas, keeps the 3D full-height
+    maxHeight: "70%",
     backgroundColor: C.bg,
     borderTopLeftRadius: R.sheet,
     borderTopRightRadius: R.sheet,
@@ -146,6 +151,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 18,
+    shadowColor: "#141414",
+    shadowOpacity: 0.13,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -6 },
+    zIndex: 20,
   },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   headRight: { flexDirection: "row", alignItems: "center", gap: 12 },

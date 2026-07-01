@@ -37,13 +37,25 @@ export interface CanvasSceneProps {
   scene: Scene;
   selectedIds: readonly string[];
   onTapPart: (id: string) => void;
-  orbit: Orbit;
+  orbit?: Orbit; // legacy (OrbitControls now owns the camera); kept optional for the native fallback
   /** Active view lenses (rail toggles): "glass" → translucent, "lines" → edge overlay. */
   lenses: readonly string[];
   /** Part ids toggled off in Zone 5 (eye) — skipped in the 3D render. View-only, NOT export. */
   hiddenIds: readonly string[];
   /** Drag on empty space → relative camera orbit (radians). Web only; native ignores it. */
   onOrbitDelta?: (dPol: number, dAz: number) => void;
+  /** Ref receiving the OrbitControls instance so the on-screen joystick can drive it (web only). */
+  controlsRef?: { current: OrbitLike | null };
+}
+
+/** The bits of drei's OrbitControls the joystick uses (loosely typed to avoid a hard drei dep here). */
+export interface OrbitLike {
+  getAzimuthalAngle(): number;
+  getPolarAngle(): number;
+  setAzimuthalAngle(a: number): void;
+  setPolarAngle(a: number): void;
+  update(): void;
+  reset(): void;
 }
 
 /** Overall cabinet size in millimetres — for the "dimension" view lens readout. */

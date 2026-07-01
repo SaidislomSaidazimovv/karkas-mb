@@ -299,6 +299,13 @@ const w = StyleSheet.create({
 });
 
 export const sheetBase: ViewStyle = {
+  // Absolute bottom sheet ABOVE the toolbar — floats over the canvas instead of shrinking it, so the
+  // 3D viewport stays full-height (the joystick/HUD no longer get crammed into a half-canvas).
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 84, // clears the bottom toolbar
+  maxHeight: "70%",
   backgroundColor: C.bg,
   borderTopLeftRadius: R.sheet,
   borderTopRightRadius: R.sheet,
@@ -307,6 +314,11 @@ export const sheetBase: ViewStyle = {
   paddingHorizontal: 16,
   paddingTop: 8,
   paddingBottom: 18,
+  shadowColor: "#141414",
+  shadowOpacity: 0.13,
+  shadowRadius: 20,
+  shadowOffset: { width: 0, height: -6 },
+  zIndex: 20,
 };
 
 const s = StyleSheet.create({

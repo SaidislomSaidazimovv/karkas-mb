@@ -8,11 +8,11 @@
 // driven by the joystick AND by dragging empty space (an invisible backdrop reports the drag
 // delta through onOrbitDelta). The model + floor stay put, so it reads like walking around it.
 
-import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
+import { useMemo } from "react";
 import {
   ACESFilmicToneMapping,
-  BackSide,
   BoxGeometry,
   CanvasTexture,
   EdgesGeometry,
@@ -21,19 +21,6 @@ import {
 } from "three";
 import type { CanvasSceneProps } from "./cabinet";
 import { C } from "../../theme";
-
-/** Drive the camera from orbit angles (polar pitch, azimuth yaw) on a sphere of radius `dist`. */
-function Rig({ orbit, dist }: { orbit: [number, number]; dist: number }) {
-  const camera = useThree((s) => s.camera);
-  const [pol, az] = orbit;
-  useLayoutEffect(() => {
-    const cp = Math.cos(pol), sp = Math.sin(pol);
-    camera.position.set(dist * cp * Math.sin(az), dist * sp, dist * cp * Math.cos(az));
-    camera.lookAt(0, 0, 0);
-    camera.updateProjectionMatrix();
-  }, [camera, pol, az, dist]);
-  return null;
-}
 
 /** Procedural oak-ish grain drawn to an offscreen canvas → one shared CanvasTexture. */
 function makeWoodTexture(): CanvasTexture {
@@ -70,10 +57,13 @@ function makeWoodTexture(): CanvasTexture {
   return tex;
 }
 
-export function CanvasScene({ scene, selectedIds, onTapPart, orbit, lenses, hiddenIds, onOrbitDelta }: CanvasSceneProps) {
+export function CanvasScene({ scene, selectedIds, onTapPart, lenses, hiddenIds, controlsRef }: CanvasSceneProps) {
   const sel = new Set(selectedIds);
   const hidden = new Set(hiddenIds); // boards toggled off in Zone 5 — skipped below (view-only)
-  const dist = Math.max(scene.radius, 0.3) * 1.7 + 0.4;
+  // Distance that frames the whole cabinet with margin (fov 35°). OrbitControls zooms within bounds.
+  const r = Math.max(scene.radius, 0.3);
+  const fitDist = r * 3.0 + 0.5;
+  const camPos: [number, number, number] = [fitDist * 0.5, fitDist * 0.42, fitDist * 0.76];
   const floorY = -scene.center[1]; // cabinet is centred at the origin → floor sits below it
   const wood = useMemo(makeWoodTexture, []);
   const glass = lenses.includes("glass"); // translucent panels
@@ -84,31 +74,30 @@ export function CanvasScene({ scene, selectedIds, onTapPart, orbit, lenses, hidd
     [scene.boards],
   );
 
-  // Drag empty space to orbit: track the last pointer position, report deltas as radians.
-  const drag = useRef<{ x: number; y: number } | null>(null);
-  const onDown = (e: ThreeEvent<PointerEvent>) => {
-    drag.current = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
-  };
-  const onMove = (e: ThreeEvent<PointerEvent>) => {
-    if (!drag.current || !onOrbitDelta) return;
-    const dx = e.nativeEvent.clientX - drag.current.x;
-    const dy = e.nativeEvent.clientY - drag.current.y;
-    drag.current = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
-    onOrbitDelta(-dy * 0.006, dx * 0.006);
-  };
-  const onUp = () => {
-    drag.current = null;
-  };
-
   return (
     <Canvas
       shadows="soft"
-      camera={{ fov: 35, near: 0.01, far: 100 }}
+      camera={{ fov: 35, near: 0.01, far: 100, position: camPos }}
       gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
       style={{ width: "100%", height: "100%" }}
     >
       <color attach="background" args={[0xf4f3f0]} />
-      <Rig orbit={orbit} dist={dist} />
+      {/* Camera controller — drag to orbit, mouse-wheel / pinch to zoom (no pan). The joystick drives
+          it through controlsRef. Damping = smooth, reference-quality feel. */}
+      <OrbitControls
+        ref={controlsRef as never}
+        makeDefault
+        target={[0, 0, 0]}
+        enablePan={false}
+        enableDamping
+        dampingFactor={0.12}
+        rotateSpeed={0.65}
+        zoomSpeed={0.9}
+        minDistance={fitDist * 0.35}
+        maxDistance={fitDist * 2.4}
+        minPolarAngle={0.12}
+        maxPolarAngle={Math.PI * 0.49}
+      />
 
       {/* Wood rig: warm hemisphere fill + a tight soft-shadow key light + cool rim. */}
       <hemisphereLight args={[0xfff4e2, 0x6b5a40, 0.65]} />
@@ -127,12 +116,6 @@ export function CanvasScene({ scene, selectedIds, onTapPart, orbit, lenses, hidd
         shadow-camera-bottom={-3}
       />
       <directionalLight position={[-5, 3, -4]} intensity={0.28} />
-
-      {/* Invisible backdrop — catches drags on empty space without painting or occluding. */}
-      <mesh onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}>
-        <sphereGeometry args={[dist * 4, 8, 8]} />
-        <meshBasicMaterial side={BackSide} transparent opacity={0} depthWrite={false} colorWrite={false} />
-      </mesh>
 
       {/* Floor — catches the shadow so the cabinet feels grounded. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, floorY, 0]} receiveShadow>

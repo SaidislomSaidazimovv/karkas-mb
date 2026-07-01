@@ -17,7 +17,7 @@ import { CanvasScene } from "./CanvasScene";
 import { DivideSheet } from "./DivideSheet";
 import { ResizeSheet } from "./ResizeSheet";
 import { MoveSheet } from "./MoveSheet";
-import { DEMO_PREVIEW, layoutToScene, previewToScene, sceneDimsMm, type Orbit } from "./cabinet";
+import { DEMO_PREVIEW, layoutToScene, previewToScene, sceneDimsMm, type OrbitLike } from "./cabinet";
 import type { DivideOpts } from "../../store/appStore";
 import type { Scope, StructuralModel } from "../../engineBridge";
 
@@ -53,7 +53,9 @@ export function CanvasView() {
     [sceneData],
   );
 
-  const [orbit, setOrbit] = useState<Orbit>([0.5, 0.6]);
+  // OrbitControls (in CanvasScene) owns the camera — drag to orbit, wheel/pinch to zoom. The joystick
+  // nudges it through this ref.
+  const controlsRef = useRef<OrbitLike | null>(null);
   // The move/resize/divide sheets live in the SHARED single overlay slot (panelUi) — same slot as
   // add/export/menu/layers — so only one bottom panel is ever visible at a time.
   const overlay = usePanelUi((s) => s.overlay);
@@ -102,8 +104,16 @@ export function CanvasView() {
     if (selection.sectionId) divide(selection.sectionId, opts);
     closeOverlay();
   };
-  const onOrbitDelta = (dPol: number, dAz: number) =>
-    setOrbit(([p, a]) => [clamp(p + dPol, POL_MIN, POL_MAX), a + dAz]);
+  // Nudge the OrbitControls camera (joystick arrows + knob drag). Reads current angles from the
+  // controls so it composes with mouse-drag/wheel; clamps pitch so it never dives under the floor.
+  const nudgeCam = (dPol: number, dAz: number) => {
+    const c = controlsRef.current;
+    if (!c) return;
+    c.setPolarAngle(clamp(c.getPolarAngle() + dPol, 0.12, Math.PI * 0.49));
+    c.setAzimuthalAngle(c.getAzimuthalAngle() + dAz);
+    c.update();
+  };
+  const resetCam = () => controlsRef.current?.reset();
 
   // Route taps: merge-mode collects sections; a divider becomes the move target; else a selection.
   const handleTap = (id: string) => {
@@ -173,10 +183,9 @@ export function CanvasView() {
           mergeMode ? mergeSel.map((x) => x.part) : moveDivId ? [moveDivId] : selection.partIds
         }
         onTapPart={handleTap}
-        orbit={orbit}
         lenses={view}
         hiddenIds={hiddenIds}
-        onOrbitDelta={onOrbitDelta}
+        controlsRef={controlsRef}
       />
 
       {/* Overlay layer — taps pass through to the 3D except on the controls below. */}
@@ -274,33 +283,18 @@ export function CanvasView() {
         <View style={styles.hud} pointerEvents="box-none">
           <View style={styles.hudCluster}>
             {/* Reset the camera to the default 3/4 view. */}
-            <HudBtn glyph="⌂" onPress={() => setOrbit([0.5, 0.6])} />
+            <HudBtn glyph="⌂" onPress={resetCam} />
             <HudBtn glyph="⊘" onPress={deselectAll} dark />
           </View>
 
-          {/* Joystick — hold an arrow to orbit, tap the centre knob to reset the view. */}
+          {/* Joystick — hold an arrow to orbit, drag the centre knob to orbit smoothly, tap to reset.
+              (Mouse-drag on the model + wheel/pinch zoom are handled by OrbitControls in the scene.) */}
           <View style={styles.joy} pointerEvents="box-none">
-            <JoyArrow
-              style={styles.joyUp}
-              glyph="▲"
-              onChange={() => setOrbit(([p, a]) => [clamp(p + POL_STEP, POL_MIN, POL_MAX), a])}
-            />
-            <JoyArrow
-              style={styles.joyDn}
-              glyph="▼"
-              onChange={() => setOrbit(([p, a]) => [clamp(p - POL_STEP, POL_MIN, POL_MAX), a])}
-            />
-            <JoyArrow
-              style={styles.joyLf}
-              glyph="◀"
-              onChange={() => setOrbit(([p, a]) => [p, a - AZ_STEP])}
-            />
-            <JoyArrow
-              style={styles.joyRt}
-              glyph="▶"
-              onChange={() => setOrbit(([p, a]) => [p, a + AZ_STEP])}
-            />
-            <JoyKnob onOrbit={onOrbitDelta} onReset={() => setOrbit([0.5, 0.6])} />
+            <JoyArrow style={styles.joyUp} glyph="▲" onChange={() => nudgeCam(-POL_STEP, 0)} />
+            <JoyArrow style={styles.joyDn} glyph="▼" onChange={() => nudgeCam(POL_STEP, 0)} />
+            <JoyArrow style={styles.joyLf} glyph="◀" onChange={() => nudgeCam(0, -AZ_STEP)} />
+            <JoyArrow style={styles.joyRt} glyph="▶" onChange={() => nudgeCam(0, AZ_STEP)} />
+            <JoyKnob onOrbit={nudgeCam} onReset={resetCam} />
           </View>
 
           {/* Undo/redo — wired to the store history; disabled when the stack is empty. */}
