@@ -20,6 +20,7 @@ type Item = {
   into?: string; // child node id → drill deeper
   kind?: AddKind; // leaf → store.addPart(kind)
   doubled?: boolean; // leaf shelf → addPart(kind, { doubled: true }) — 2×16 → 32 мм
+  glazedGrid?: { lights: number }; // leaf door → addPart("door", { glazedGrid }) — витрина (E2/E3)
 };
 type Node = { title: string; items: Item[] };
 
@@ -31,6 +32,7 @@ const NODES: Record<string, Node> = {
       { id: "divider", icon: "add", title: "Перегородка", sub: "вертикальная", kind: "divider" },
       { id: "drawer", icon: "slide", title: "Ящик", sub: "направляющие · конверт хода", kind: "drawer" },
       { id: "door", icon: "hinge", title: "Дверь / фасад", sub: "петли · накладная", kind: "door" },
+      { id: "vitrine", icon: "glass", title: "Витрина (стекло)", sub: "3 секции · рама + мунтины + стекло", kind: "door", glazedGrid: { lights: 3 } },
     ],
   },
   shelf: {
@@ -66,7 +68,12 @@ export function AddSheet() {
       return;
     }
     if (!sectionId) return; // disabled — a leaf needs a target section
-    addPart(sectionId, item.kind, item.doubled ? { doubled: true } : undefined);
+    const opts = item.doubled
+      ? { doubled: true }
+      : item.glazedGrid
+        ? { glazedGrid: item.glazedGrid }
+        : undefined;
+    addPart(sectionId, item.kind, opts);
     closeAdd();
   };
 
