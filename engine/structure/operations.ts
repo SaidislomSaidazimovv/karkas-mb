@@ -257,6 +257,125 @@ function replaceSection(section: Section, targetId: SectionId, replacement: Sect
 }
 
 // ===========================================================================
+// 1b · mergeSections — the inverse of divideSection (blocker #2, v3 §9)
+// ===========================================================================
+
+/**
+ * Merge 2+ ADJACENT sibling leaf sections back into one — the inverse of
+ * `divideSection`. Removes the divider `Line`s between them (from the parent's
+ * `dividers` and `Block.lines`), unions their boxes along the divide axis, and
+ * concatenates their content; every `Instance` that sat in a merged child is
+ * re-pointed to the surviving section. If EVERY child of the parent is merged,
+ * the parent reverts to a leaf — the exact inverse of a divide.
+ *
+ * No-op (same reference) for fewer than 2 distinct ids. Throws if the ids are not
+ * direct siblings of one parent (`MERGE_NOT_SIBLINGS`), not contiguous in the
+ * tiling (`MERGE_NOT_CONTIGUOUS`), or any merged child is itself non-leaf
+ * (`MERGE_NON_LEAF_CHILD`).
+ */
+export function mergeSections(
+  model: StructuralModel,
+  sectionIds: readonly SectionId[],
+): StructuralModel {
+  const ids = new Set(sectionIds);
+  if (ids.size < 2) return model; // nothing to merge
+
+  const found = findMergeParent(model, ids);
+  if (!found) throw new Error("MERGE_NOT_SIBLINGS");
+  const { block, parent } = found;
+
+  // Positions of the merged children in the parent's tiling; must be contiguous.
+  const idxs = parent.children.map((c, i) => (ids.has(c.id) ? i : -1)).filter((i) => i >= 0);
+  if (idxs.length !== ids.size) throw new Error("MERGE_NOT_SIBLINGS");
+  const lo = idxs[0]!;
+  const hi = idxs[idxs.length - 1]!;
+  if (hi - lo + 1 !== idxs.length) throw new Error("MERGE_NOT_CONTIGUOUS");
+
+  const merged = parent.children.slice(lo, hi + 1);
+  if (merged.some((c) => c.children.length > 0)) throw new Error("MERGE_NON_LEAF_CHILD");
+
+  // Union the boxes along the divide axis (the axis on which adjacent children differ).
+  const axis = divideAxisOf(merged[0]!.box, merged[1]!.box);
+  const start = originOf(merged[0]!.box, axis);
+  const lastBox = merged[merged.length - 1]!.box;
+  const span = originOf(lastBox, axis) + extentOf(lastBox, axis) - start;
+  const unionBox = withAxis(merged[0]!.box, axis, start, span);
+
+  const mergedInstanceIds = merged.flatMap((c) => c.instanceIds);
+  const mergedPurpose = merged.find((c) => c.purpose !== null)?.purpose ?? null;
+  const mergedChildIds = new Set(merged.map((c) => c.id));
+
+  // Divider lines strictly between the merged children (parent.dividers[lo..hi-1]).
+  const removedLineIds = new Set(parent.dividers.slice(lo, hi));
+
+  let newParent: Section;
+  let targetSectionId: SectionId;
+  if (merged.length === parent.children.length) {
+    // All children merged → parent reverts to a leaf (exact inverse of divide).
+    targetSectionId = parent.id;
+    newParent = { ...parent, dividers: [], children: [], instanceIds: mergedInstanceIds, purpose: mergedPurpose };
+  } else {
+    // Subset merge → one new leaf child replaces the merged range.
+    targetSectionId = merged[0]!.id;
+    const mergedChild: Section = {
+      id: targetSectionId,
+      box: unionBox,
+      dividers: [],
+      children: [],
+      instanceIds: mergedInstanceIds,
+      purpose: mergedPurpose,
+    };
+    newParent = {
+      ...parent,
+      children: [...parent.children.slice(0, lo), mergedChild, ...parent.children.slice(hi + 1)],
+      dividers: parent.dividers.filter((id) => !removedLineIds.has(id)),
+    };
+  }
+
+  const blocks = model.blocks.map((b) => {
+    if (b.id !== block.id) return b;
+    const zones = b.zones.map((z) => {
+      const root = replaceSection(z.root, parent.id, newParent);
+      return root === z.root ? z : ({ ...z, root } as Zone);
+    });
+    const lines = b.lines.filter((l) => !removedLineIds.has(l.id));
+    const instances = b.instances.map((inst) =>
+      mergedChildIds.has(inst.sectionId) && inst.sectionId !== targetSectionId
+        ? { ...inst, sectionId: targetSectionId }
+        : inst,
+    );
+    return { ...b, zones, lines, instances };
+  });
+
+  return { ...model, blocks };
+}
+
+/** Find the section whose DIRECT children include every id in `ids`. */
+function findMergeParent(
+  model: StructuralModel,
+  ids: Set<SectionId>,
+): { block: Block; parent: Section } | null {
+  const wanted = [...ids];
+  for (const block of model.blocks) {
+    let hit: Section | null = null;
+    forEachSection(block, (s) => {
+      if (!hit && s.children.length > 0 && wanted.every((id) => s.children.some((c) => c.id === id))) {
+        hit = s;
+      }
+    });
+    if (hit) return { block, parent: hit };
+  }
+  return null;
+}
+
+/** The axis on which two adjacent sibling boxes differ (their divide axis). */
+function divideAxisOf(a: Box3D, b: Box3D): Axis {
+  if (a.x !== b.x) return "x";
+  if (a.y !== b.y) return "y";
+  return "z";
+}
+
+// ===========================================================================
 // 2 · moveLine — DB/19_FUNCTION_MAP.md §3.4 + §4 (scope)
 // ===========================================================================
 

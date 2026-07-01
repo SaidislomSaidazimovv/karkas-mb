@@ -18,6 +18,7 @@ import {
   countExceptions,
   detachInstance,
   divideSection,
+  mergeSections,
   moveLine as engineMoveLine,
   reattachInstance,
   selectByTap,
@@ -295,8 +296,16 @@ export const useApp = create<AppState>((set, get) => ({
       /* ignore */
     }
   },
-  merge(_sectionIds) {
-    /* TODO S3-E3: mergeSections — blocker #2 (engine op not built yet) */
+  merge(sectionIds) {
+    const m = get().model;
+    if (!m) return;
+    try {
+      const next = mergeSections(m, sectionIds);
+      if (next === m) return; // no-op (< 2 ids)
+      applyEdit(get, set, next, false);
+    } catch {
+      /* invalid merge (non-siblings / non-contiguous / non-leaf) — ignore; UI guards */
+    }
   },
 
   undo() {

@@ -13,6 +13,7 @@ export { buildDemoModel } from "./_engine/structure/demoModel";
 export { solvePreview, solveFull } from "./_engine/index";
 export {
   divideSection,
+  mergeSections,
   moveLine,
   selectByTap,
   detachInstance,
