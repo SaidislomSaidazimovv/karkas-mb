@@ -156,17 +156,20 @@ function carcassParts(block: Block): Part[] {
   return boxCarcass(block.id, "", w, h, d);
 }
 
-// Corner-filler width (blocker #6) — a narrow strip that bridges the L junction. NOT fixture-
-// grounded; a reasonable default, confirm at the factory (S3-E7). Exported so solveLayout places it.
-export const CORNER_FILLER_W: mm10 = 500; // 50 mm
+// Corner-filler width (blocker #6) — the strip that bridges the L junction. GROUNDED: the corner
+// convention is a 50mm blind-corner overlap (Researches/-r3 UI 1.md: "Blind corner overlap: 50mm",
+// join angle 90°) and fillers make the run-length sum exact (DB/20_ENGINE_INVARIANTS GEO-3:
+// "carcass widths + fillers = run length"). Exported so solveLayout places it.
+export const CORNER_FILLER_W: mm10 = 500; // 50 mm — blind-corner overlap
 
 /**
  * An L-corner block (blocker #1: "block can be L, not just box; the corner object owns the
  * depth-step") → the L carcass: leg-A's carcass + leg-B's carcass (its side that abuts leg-A
  * omitted — the corner join) + a corner filler (blocker #6). Each leg carries its own depth
  * (blocker #3). Dimensions only — the 3D L placement is solveLayout's job (follow-up).
- * (Judgment, flagged: which leg omits its corner side, and the filler width, are not in v3 —
- * v3 grounds the L-block + per-leg depth + "auto-emit filler"; these are the emit details.)
+ * Filler width is GROUNDED (50mm blind-corner overlap — see CORNER_FILLER_W). The only remaining
+ * emit detail is which leg omits its corner side (minor); back-panel exclusion at the corner
+ * (Researches/-h03) is a later refinement.
  */
 function lCornerParts(block: Block): Part[] {
   const fp = block.footprint!;
