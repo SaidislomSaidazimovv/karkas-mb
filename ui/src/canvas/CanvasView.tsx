@@ -58,15 +58,12 @@ export function CanvasView() {
   // OrbitControls (in CanvasScene) owns the camera — drag to orbit, wheel/pinch to zoom. The joystick
   // nudges it through this ref.
   const controlsRef = useRef<OrbitLike | null>(null);
-  const joyEl = useRef<any>(null); // web: the joystick base DOM node (the interaction surface)
-  const knobDom = useRef<any>(null); // web: the knob DOM node (moved within the base while held)
-  const joyVec = useRef({ x: 0, y: 0 }); // normalised push -1..1 while the stick is held
-  const joyHeld = useRef(false); // true between pointerdown and release
   // The move/resize/divide sheets live in the SHARED single overlay slot (panelUi) — same slot as
   // add/export/menu/layers — so only one bottom panel is ever visible at a time.
   const overlay = usePanelUi((s) => s.overlay);
   const openOverlay = usePanelUi((s) => s.open);
   const closeOverlay = usePanelUi((s) => s.close);
+  const hint = usePanelUi((s) => s.hint);
   const divideOpen = overlay === "divide";
   const resizeOpen = overlay === "resize";
   const moveOpen = overlay === "move";
@@ -110,102 +107,7 @@ export function CanvasView() {
     if (selection.sectionId) divide(selection.sectionId, opts);
     closeOverlay();
   };
-  // Nudge the OrbitControls camera (joystick arrows + knob drag). Reads current angles from the
-  // controls so it composes with mouse-drag/wheel; clamps pitch so it never dives under the floor.
-  const nudgeCam = (dPol: number, dAz: number) => {
-    const c = controlsRef.current;
-    if (!c) return;
-    c.setPolarAngle(clamp(c.getPolarAngle() + dPol, 0.12, Math.PI * 0.49));
-    c.setAzimuthalAngle(c.getAzimuthalAngle() + dAz);
-    c.update();
-  };
   const resetCam = () => controlsRef.current?.reset();
-
-  // A REAL analog joystick (like a game controller): press anywhere on the base, the knob slides
-  // toward your finger (clamped inside the ring), and the camera orbits CONTINUOUSLY in that
-  // direction for as long as you hold — push further = orbit faster. Release → the knob springs
-  // back to centre and motion stops. Horizontal push → yaw (left/right around), vertical → pitch
-  // (tilt up/down). This is NOT a delta-drag; it's a held direction stick.
-  //
-  // Implemented with raw DOM pointer events on the base + setPointerCapture (RN PanResponder is
-  // unreliable on web — the browser steals a touch-drag as a scroll) and a requestAnimationFrame
-  // loop that applies the current push each frame. The knob is moved via a direct CSS transform so
-  // it tracks the finger with no React re-render.
-  useEffect(() => {
-    const base = joyEl.current;
-    if (!base || typeof base.addEventListener !== "function") return; // native → no-op
-    const knob = knobDom.current;
-    const MAX = 32; // px the knob can travel from centre
-    const SPEED = 0.03; // rad per frame at full push
-    let raf = 0;
-    const moveKnob = (px: number, py: number) => {
-      if (knob) knob.style.transform = `translate(${px}px, ${py}px)`;
-    };
-    const loop = () => {
-      if (!joyHeld.current) return;
-      const v = joyVec.current;
-      // vertical push → polar (matches the ▲ arrow: up = tilt toward the top), horizontal → azimuth.
-      nudgeCam(v.y * SPEED, v.x * SPEED);
-      raf = requestAnimationFrame(loop);
-    };
-    const compute = (e: PointerEvent) => {
-      const r = base.getBoundingClientRect();
-      let dx = e.clientX - (r.x + r.width / 2);
-      let dy = e.clientY - (r.y + r.height / 2);
-      const mag = Math.hypot(dx, dy);
-      if (mag > MAX) {
-        dx = (dx / mag) * MAX;
-        dy = (dy / mag) * MAX;
-      }
-      moveKnob(dx, dy);
-      joyVec.current = { x: dx / MAX, y: dy / MAX };
-    };
-    const onDown = (e: PointerEvent) => {
-      joyHeld.current = true;
-      if (knob) knob.style.transition = "none"; // track the finger instantly while dragging
-      try {
-        base.setPointerCapture(e.pointerId);
-      } catch {
-        /* engines without capture still get document-level pointermove */
-      }
-      compute(e);
-      e.preventDefault();
-      e.stopPropagation();
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(loop);
-    };
-    const onMove = (e: PointerEvent) => {
-      if (!joyHeld.current) return;
-      compute(e);
-      e.preventDefault();
-    };
-    const onUp = (e: PointerEvent) => {
-      joyHeld.current = false;
-      joyVec.current = { x: 0, y: 0 };
-      if (knob) {
-        knob.style.transition = "transform 0.16s ease-out"; // spring back to centre
-        moveKnob(0, 0);
-      }
-      try {
-        base.releasePointerCapture(e.pointerId);
-      } catch {
-        /* noop */
-      }
-      cancelAnimationFrame(raf);
-    };
-    base.addEventListener("pointerdown", onDown);
-    base.addEventListener("pointermove", onMove);
-    base.addEventListener("pointerup", onUp);
-    base.addEventListener("pointercancel", onUp);
-    return () => {
-      cancelAnimationFrame(raf);
-      base.removeEventListener("pointerdown", onDown);
-      base.removeEventListener("pointermove", onMove);
-      base.removeEventListener("pointerup", onUp);
-      base.removeEventListener("pointercancel", onUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Route taps: merge-mode collects sections; a divider becomes the move target; else a selection.
   const handleTap = (id: string) => {
@@ -282,6 +184,14 @@ export function CanvasView() {
 
       {/* Overlay layer — taps pass through to the 3D except on the controls below. */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        {/* Transient hint toast — feedback for actions that need a precondition (e.g. select first). */}
+        {hint ? (
+          <View style={styles.toastWrap} pointerEvents="none">
+            <View style={styles.toast}>
+              <Text style={styles.toastT}>{hint}</Text>
+            </View>
+          </View>
+        ) : null}
         {/* Shape selector (blocker #1) — switch box ↔ L-corner. Hidden while a sheet owns the slot. */}
         {canvasClear && (
           <View style={styles.shapeSel} pointerEvents="box-none">
@@ -385,19 +295,12 @@ export function CanvasView() {
             <HudBtn glyph="↻" onPress={redo} disabled={!canRedo} />
           </View>
 
-          {/* Joystick — absolute-centred, so it's rendered LAST (+ zIndex) to paint ABOVE the HUD
-              clusters; otherwise a cluster's row box covers the knob and eats its press. DRAG the
-              centre stick to orbit smoothly; tap an arrow for a discrete nudge. (Dragging the 3D
-              model + wheel/pinch zoom = OrbitControls.) */}
-          <View ref={joyEl} style={[styles.joy, JOY_NO_TOUCH_SCROLL]}>
-            {/* Direction markings on the base (visual only — the whole base is the stick). */}
-            <Text style={[styles.joyMark, styles.joyUp]} pointerEvents="none">▲</Text>
-            <Text style={[styles.joyMark, styles.joyDn]} pointerEvents="none">▼</Text>
-            <Text style={[styles.joyMark, styles.joyLf]} pointerEvents="none">◀</Text>
-            <Text style={[styles.joyMark, styles.joyRt]} pointerEvents="none">▶</Text>
-            {/* Centre stick — press & push in a direction; the effect drives it + orbits the camera. */}
-            <View ref={knobDom} style={styles.knob} pointerEvents="none" />
-          </View>
+          {/* Joystick — its own component so its pointer bindings mount/unmount WITH the HUD. (The
+              HUD unmounts whenever a bottom sheet opens; a one-shot effect on the parent would bind
+              to a dead DOM node after the first modal and the stick would go silent — the "joystick
+              stops working after a modal" bug.) Absolute-centred + zIndex so the knob sits above the
+              HUD cluster rows. */}
+          <Joystick controlsRef={controlsRef} />
         </View>
         )}
 
@@ -427,6 +330,112 @@ export function CanvasView() {
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+// A REAL analog joystick (like a game controller): press anywhere on the base, the knob slides
+// toward your finger (clamped inside the ring), and the camera orbits CONTINUOUSLY in that
+// direction for as long as you hold — push further = orbit faster. Release → the knob springs back
+// to centre and motion stops. Horizontal push → yaw, vertical → pitch (up = tilt toward the top).
+//
+// It is a component (not inline in CanvasView) so its pointer bindings mount and unmount WITH the
+// HUD: every time a bottom sheet opens the HUD unmounts, and this effect cleans up; when it closes
+// the HUD remounts and the effect re-binds to the fresh DOM node. Raw DOM pointer events + capture
+// (RN PanResponder is unreliable on web) drive a rAF loop; the knob moves via a direct CSS transform.
+function Joystick({ controlsRef }: { controlsRef: React.RefObject<OrbitLike | null> }) {
+  const baseRef = useRef<any>(null);
+  const knobRef = useRef<any>(null);
+  const vec = useRef({ x: 0, y: 0 }); // normalised push -1..1 while held
+  const held = useRef(false);
+  useEffect(() => {
+    const base = baseRef.current;
+    if (!base || typeof base.addEventListener !== "function") return; // native → no-op
+    const knob = knobRef.current;
+    const MAX = 32; // px the knob can travel from centre
+    const SPEED = 0.03; // rad per frame at full push
+    let raf = 0;
+    const moveKnob = (px: number, py: number) => {
+      if (knob) knob.style.transform = `translate(${px}px, ${py}px)`;
+    };
+    const nudge = (dPol: number, dAz: number) => {
+      const c = controlsRef.current;
+      if (!c) return;
+      c.setPolarAngle(clamp(c.getPolarAngle() + dPol, 0.12, Math.PI * 0.49));
+      c.setAzimuthalAngle(c.getAzimuthalAngle() + dAz);
+      c.update();
+    };
+    const loop = () => {
+      if (!held.current) return;
+      const v = vec.current;
+      nudge(v.y * SPEED, v.x * SPEED);
+      raf = requestAnimationFrame(loop);
+    };
+    const compute = (e: PointerEvent) => {
+      const r = base.getBoundingClientRect();
+      let dx = e.clientX - (r.x + r.width / 2);
+      let dy = e.clientY - (r.y + r.height / 2);
+      const mag = Math.hypot(dx, dy);
+      if (mag > MAX) {
+        dx = (dx / mag) * MAX;
+        dy = (dy / mag) * MAX;
+      }
+      moveKnob(dx, dy);
+      vec.current = { x: dx / MAX, y: dy / MAX };
+    };
+    const onDown = (e: PointerEvent) => {
+      held.current = true;
+      if (knob) knob.style.transition = "none";
+      try {
+        base.setPointerCapture(e.pointerId);
+      } catch {
+        /* no capture → document-level pointermove still fires */
+      }
+      compute(e);
+      e.preventDefault();
+      e.stopPropagation();
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(loop);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!held.current) return;
+      compute(e);
+      e.preventDefault();
+    };
+    const onUp = (e: PointerEvent) => {
+      held.current = false;
+      vec.current = { x: 0, y: 0 };
+      if (knob) {
+        knob.style.transition = "transform 0.16s ease-out";
+        moveKnob(0, 0);
+      }
+      try {
+        base.releasePointerCapture(e.pointerId);
+      } catch {
+        /* noop */
+      }
+      cancelAnimationFrame(raf);
+    };
+    base.addEventListener("pointerdown", onDown);
+    base.addEventListener("pointermove", onMove);
+    base.addEventListener("pointerup", onUp);
+    base.addEventListener("pointercancel", onUp);
+    return () => {
+      cancelAnimationFrame(raf);
+      base.removeEventListener("pointerdown", onDown);
+      base.removeEventListener("pointermove", onMove);
+      base.removeEventListener("pointerup", onUp);
+      base.removeEventListener("pointercancel", onUp);
+    };
+  }, [controlsRef]);
+
+  return (
+    <View ref={baseRef} style={[styles.joy, JOY_NO_TOUCH_SCROLL]}>
+      <Text style={[styles.joyMark, styles.joyUp]} pointerEvents="none">▲</Text>
+      <Text style={[styles.joyMark, styles.joyDn]} pointerEvents="none">▼</Text>
+      <Text style={[styles.joyMark, styles.joyLf]} pointerEvents="none">◀</Text>
+      <Text style={[styles.joyMark, styles.joyRt]} pointerEvents="none">▶</Text>
+      <View ref={knobRef} style={styles.knob} pointerEvents="none" />
+    </View>
+  );
 }
 
 /** The leaf section an instance panel (`<blockId>__inst_<id>`) sits in, for merge collection. */
@@ -483,6 +492,12 @@ function HudBtn({
 
 const styles = StyleSheet.create({
   canvas: { flex: 1, position: "relative", backgroundColor: C.chrome, overflow: "hidden" },
+  toastWrap: { position: "absolute", top: 76, left: 0, right: 0, alignItems: "center", zIndex: 40 },
+  toast: {
+    maxWidth: "82%",
+    backgroundColor: "rgba(20,20,20,0.9)", paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
+  },
+  toastT: { fontFamily: FONT, fontSize: 12.5, fontWeight: "700", color: "#fff", textAlign: "center" },
 
   chip: {
     position: "absolute",

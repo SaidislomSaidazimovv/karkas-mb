@@ -46,15 +46,18 @@ export function BottomToolbar() {
   const selection = useApp((s) => s.selection);
   const open = usePanelUi((s) => s.open);
   const close = usePanelUi((s) => s.close);
+  const flashHint = usePanelUi((s) => s.flashHint);
   const slots = SLOTS[mode];
   const hasSel = selection.kind !== "none";
 
-  // A build verb press either opens its sheet (needs a selection) or just clears a stray overlay.
+  // A build verb press opens its sheet (most need a selection) — and if the precondition isn't met
+  // it flashes a hint instead of silently doing nothing (that "dead button" feel the founder hit).
   const runBuildVerb = (key: string) => {
     if (key === "add") return open("add");
-    if (key === "resize" && hasSel) return open("resize");
-    if (key === "divide" && selection.sectionId) return open("divide");
-    close(); // select / move (canvas-driven) / preconditions unmet → clean slate
+    if (key === "resize") return hasSel ? open("resize") : flashHint("Коснитесь детали, потом «Разм.»");
+    if (key === "divide") return selection.sectionId ? open("divide") : flashHint("Выберите секцию, потом «Дел.»");
+    if (key === "move") return hasSel ? close() : flashHint("Двиг.: перетаскивайте деталь на модели");
+    close(); // «Выбор» → clean slate (tap parts on the model to select)
   };
   // Active verb is local toolbar state (the selected verb within a mode); the first
   // non-reserved slot is the default. Switching mode resets it via the keyed default below.
