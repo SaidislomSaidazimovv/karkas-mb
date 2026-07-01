@@ -73,6 +73,10 @@ function panel(
  */
 const frontBand = (): Part["edges"] => [EDGE_BAND_MM10, 0, 0, 0];
 
+/** All four edges banded — a facade/door is visible from every side (GROUNDED: the factory door
+ *  SHKOF_ORTA_CHAP_ESHIK_7_1.XML bands Face 1/2/3/4 at 1.000mm). */
+const allBand = (): Part["edges"] => [EDGE_BAND_MM10, EDGE_BAND_MM10, EDGE_BAND_MM10, EDGE_BAND_MM10];
+
 /**
  * L1 doubling: a 32mm build = TWO glued 16mm boards, never one 32mm board. Emit two Part records
  * (same geometry, 16mm each). The doubled edge wears ONE kromka run — the OUTER layer keeps the
@@ -132,6 +136,14 @@ function instanceParts(block: Block, inst: Instance): Part[] {
     const width = section.box.d; // depth (Y)
     // Banded on the FRONT edge (Face 1 = edges[0] = the Y=Width depth-front edge) — see frontBand().
     const base = panel(`${block.id}__inst_${inst.id}`, component.name, length, width, frontBand());
+    return component.doubled ? doublePanel(base) : [base];
+  }
+  // A facade/door covers a section's front opening: height (X, hinge axis) × width (Y), banded
+  // on all four visible edges. Hinge drilling is added by the drilling pass (engine/structure).
+  if (component.role === "facade") {
+    const length = section.box.h; // door height (X) — hinge cups run along this axis
+    const width = section.box.w; // door width (Y)
+    const base = panel(`${block.id}__inst_${inst.id}`, component.name, length, width, allBand());
     return component.doubled ? doublePanel(base) : [base];
   }
   return [];
