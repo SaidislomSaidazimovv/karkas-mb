@@ -59,19 +59,37 @@ function isSidePanel(partId: string): boolean {
   return partId.endsWith("__side_l") || partId.endsWith("__side_r");
 }
 
+/** A shelf's own depth — its section's box depth (walks all sections, not just leaves). */
+function shelfDepthOf(block: StructuralModel["blocks"][number], sectionId: string): mm10 {
+  for (const zone of block.zones) {
+    let hit: mm10 | null = null;
+    const walk = (s: { id: string; box: { d: mm10 }; children: readonly unknown[] }): void => {
+      if (hit === null && s.id === sectionId) hit = s.box.d;
+      (s.children as { id: string; box: { d: mm10 }; children: readonly unknown[] }[]).forEach(walk);
+    };
+    walk(zone.root as never);
+    if (hit !== null) return hit;
+  }
+  return block.box.d;
+}
+
 /**
- * Real shelf X-positions (heights up a side panel) per block — read from each internal_shelf
- * instance's anchor, NOT synthesised as a full column. These are the X the factory drills at.
+ * Per block, each internal_shelf's { x = anchor height, depth = its section's depth }. Read from
+ * the model, NOT a synthesised column. The depth lets the drilling pass match a shelf to the side
+ * panels that actually bound it (a side is drilled only for shelves of its own depth) — so an
+ * L-block's leg-A shelf no longer over-drills the shallower leg-B sides.
  */
-function shelfXByBlock(model: StructuralModel): Map<string, mm10[]> {
-  const out = new Map<string, mm10[]>();
+function shelvesByBlock(model: StructuralModel): Map<string, { x: mm10; depth: mm10 }[]> {
+  const out = new Map<string, { x: mm10; depth: mm10 }[]>();
   for (const block of model.blocks) {
     const roleOf = new Map(block.components.map((c) => [c.id, c.role] as const));
-    const xs: mm10[] = [];
+    const list: { x: mm10; depth: mm10 }[] = [];
     for (const inst of block.instances) {
-      if (roleOf.get(inst.componentId) === "internal_shelf") xs.push(inst.anchor.y);
+      if (roleOf.get(inst.componentId) === "internal_shelf") {
+        list.push({ x: inst.anchor.y, depth: shelfDepthOf(block, inst.sectionId) });
+      }
     }
-    if (xs.length > 0) out.set(block.id, xs);
+    if (list.length > 0) out.set(block.id, list);
   }
   return out;
 }
@@ -159,7 +177,7 @@ export function applyDrilling(
   model: StructuralModel,
   spec: HardwareSpec,
 ): Part[] {
-  const shelfX = shelfXByBlock(model);
+  const shelves = shelvesByBlock(model);
   const facades = facadeInstanceIds(model);
   const glazed = glazedInstanceIds(model);
   const pin = spec.shelfPins[SHELF_PIN_SKU];
@@ -167,10 +185,12 @@ export function applyDrilling(
   const hinge = spec.hinges[HINGE_SKU];
 
   return parts.map((part) => {
-    // Side panel → shelf-pin line for the block's shelves.
+    // Side panel → shelf-pin line for the shelves it bounds (matched by depth, so an L-block's
+    // deep leg-A shelf does not drill the shallow leg-B sides).
     if (pin && isSidePanel(part.id)) {
-      const xs = shelfX.get(blockIdOf(part.id));
-      if (!xs || xs.length === 0) return part;
+      const inBlock = shelves.get(blockIdOf(part.id));
+      const xs = inBlock ? inBlock.filter((s) => s.depth === part.width_mm10).map((s) => s.x) : [];
+      if (xs.length === 0) return part;
       return { ...part, operations: [...part.operations, ...shelfPinPattern(part, xs, { pin, system32 })] };
     }
     // Facade/door → hinge cups (y0 edge, GROUNDED: SHKOF door cups at Y=21.5) + the glass rebate
