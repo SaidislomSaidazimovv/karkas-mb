@@ -14,6 +14,7 @@ import { useApp } from "../../store/appStore";
 import { C, FONT, R } from "../../theme";
 import { CanvasScene } from "./CanvasScene";
 import { DivideSheet } from "./DivideSheet";
+import { ResizeSheet } from "./ResizeSheet";
 import { DEMO_PREVIEW, layoutToScene, previewToScene, sceneDimsMm, type Orbit } from "./cabinet";
 import type { DivideOpts } from "../../store/appStore";
 
@@ -24,6 +25,7 @@ const POL_MAX = 1.45;
 
 export function CanvasView() {
   const sceneData = useApp((s) => s.scene);
+  const model = useApp((s) => s.model);
   const selection = useApp((s) => s.selection);
   const mode = useApp((s) => s.mode);
   const view = useApp((s) => s.view);
@@ -46,6 +48,7 @@ export function CanvasView() {
 
   const [orbit, setOrbit] = useState<Orbit>([0.5, 0.6]);
   const [divideOpen, setDivideOpen] = useState(false);
+  const [resizeOpen, setResizeOpen] = useState(false);
 
   const hasSel = selection.kind !== "none";
   const selPart = selection.partIds[0];
@@ -56,12 +59,17 @@ export function CanvasView() {
   const dims = useMemo(() => sceneDimsMm(scene), [scene]);
   const mm = (m: number) => Math.round(m * 1000);
 
+  // The block that owns the selected part — its box drives the resize steppers (E8 is
+  // block-level: partId `<blockId>__…` → block). box is mm10; the sheet works in mm.
+  const block = useMemo(
+    () => (model ? model.blocks.find((b) => selPart?.startsWith(`${b.id}__`)) ?? model.blocks[0] : undefined),
+    [model, selPart],
+  );
+
   // ── seams to the store ──
-  const onResize = () => {
-    if (!selBoard) return;
-    // Tangible nudge: grow depth by 10mm (absolute mm10 = metres*10000). Wires resize; the
-    // engine resize op lands in an S3-E1 follow-up, then this is a live edit.
-    resize(selBoard.id, "z", Math.round(selBoard.size[2] * 10_000) + 100);
+  const applyResize = (axis: "x" | "z", newMm: number) => {
+    // Structure-level: set the owning block's absolute width (x) / depth (z). mm → mm10.
+    if (selPart) resize(selPart, axis, Math.round(newMm * 10));
   };
   const applyDivide = (opts: DivideOpts) => {
     // Real split: selection carries the leaf sectionId → engine divide → model/scene re-derive.
@@ -116,7 +124,7 @@ export function CanvasView() {
           <View style={styles.handles} pointerEvents="box-none">
             <Handle glyph="↻" onPress={() => {/* TODO: rotate op (no engine rotate yet) */}} />
             <Handle glyph="↕" onPress={() => {/* TODO: reposition op (no engine move yet) */}} />
-            <Handle glyph="⤢" onPress={onResize} />
+            <Handle glyph="⤢" onPress={() => setResizeOpen(true)} />
           </View>
         )}
 
@@ -174,6 +182,16 @@ export function CanvasView() {
         {/* Divide modes sheet — opens over the HUD when «Разделить» is tapped. */}
         {divideOpen && hasSel && mode === "build" && selection.sectionId && (
           <DivideSheet onApply={applyDivide} onClose={() => setDivideOpen(false)} />
+        )}
+
+        {/* Resize sheet — opens from the ⤢ handle; drives the owning block's width/depth. */}
+        {resizeOpen && hasSel && block && (
+          <ResizeSheet
+            widthMm={Math.round(block.box.w / 10)}
+            depthMm={Math.round(block.box.d / 10)}
+            onResize={applyResize}
+            onClose={() => setResizeOpen(false)}
+          />
         )}
       </View>
     </View>
