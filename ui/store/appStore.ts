@@ -61,7 +61,7 @@ import type {
 } from "../engineBridge";
 
 export type Mode = "build" | "material" | "hardware" | "frame";
-export type ViewLens = "geometry" | "lines" | "glass" | "dimension";
+export type ViewLens = "geometry" | "lines" | "glass" | "dimension" | "xray";
 
 /** Adaptive selection (CONSTRUCTION_FRAME_v3 §1): unique part vs real group (2+). */
 export interface Selection {

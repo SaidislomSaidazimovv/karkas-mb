@@ -71,6 +71,7 @@ export function CanvasScene({
   const wood = useMemo(makeWoodTexture, []);
   const glass = lenses.includes("glass"); // translucent panels
   const lines = lenses.includes("lines"); // crisp edge overlay
+  const xray = lenses.includes("xray"); // «Разрез» — see-through the OUTER carcass to work inside
   // Edge geometries (one per board) for the "lines" lens — memoised so we don't rebuild each frame.
   const edges = useMemo(
     () => scene.boards.map((b) => new EdgesGeometry(new BoxGeometry(b.size[0], b.size[1], b.size[2]))),
@@ -145,34 +146,48 @@ export function CanvasScene({
         {scene.boards.map((b, i) => {
           if (hidden.has(b.id)) return null; // eye toggled off — drop from the view (export keeps it)
           const on = sel.has(b.id);
+          // «Разрез» (xray) fades the OUTER carcass (sides/top/bottom/back) so you see + work inside;
+          // the interior content (shelves/doors/dividers — `__inst_`) stays solid.
+          const isCarcass = /(?:__side_|__top|__bottom|__back)/.test(b.id);
+          const seeThrough = glass || (xray && isCarcass);
+          const opacity = seeThrough ? (xray && isCarcass && !glass ? 0.1 : 0.42) : 1;
           return (
             <group key={b.id} position={b.pos}>
               <mesh
-                castShadow
-                receiveShadow
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Ignore a click that was actually a drag (OrbitControls just orbited the camera);
-                  // only a real tap (pointer barely moved) selects. Pass the 3D hit-point so the
-                  // caller can resolve which interior SECTION the tap falls in (walls occlude the
-                  // section volumes, so we infer the section from where the ray landed).
-                  if (e.delta < 5) onTapPart(b.id, [e.point.x, e.point.y, e.point.z]);
-                }}
+                castShadow={!seeThrough}
+                receiveShadow={!seeThrough}
+                // In «Разрез» the faded carcass is view-only (no handler) so a tap passes THROUGH it
+                // to the interior content behind — that's how you select an inner shelf/divider that
+                // a solid wall would otherwise occlude. Normal mode keeps the wall tappable (→ section).
+                onClick={
+                  xray && isCarcass
+                    ? undefined
+                    : (e) => {
+                        e.stopPropagation();
+                        // Ignore a click that was actually a drag (OrbitControls just orbited the
+                        // camera); only a real tap selects. Pass the 3D hit-point so the caller can
+                        // resolve which interior SECTION the tap falls in.
+                        if (e.delta < 5) onTapPart(b.id, [e.point.x, e.point.y, e.point.z]);
+                      }
+                }
               >
                 <boxGeometry args={b.size} />
                 <meshStandardMaterial
+                  key={seeThrough ? "see" : "solid"}
                   map={wood}
                   color={on ? C.sel : "#ffffff"}
                   emissive={on ? C.selLine : "#000000"}
                   emissiveIntensity={on ? 0.3 : 0}
                   roughness={0.62}
                   metalness={0.04}
-                  transparent={glass}
-                  opacity={glass ? 0.42 : 1}
+                  transparent={seeThrough}
+                  opacity={opacity}
+                  depthWrite={!seeThrough}
                 />
               </mesh>
-              {/* "lines" lens — outline every panel (technical / blueprint read). */}
-              {lines && (
+              {/* "lines" lens — outline every panel; in «Разрез» also outline the faded carcass so
+                  the cabinet's box shape stays readable while you see inside it. */}
+              {(lines || (xray && isCarcass)) && (
                 <lineSegments geometry={edges[i]}>
                   <lineBasicMaterial color={on ? C.selLine : "#3a352c"} />
                 </lineSegments>
