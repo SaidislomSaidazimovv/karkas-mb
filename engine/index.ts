@@ -42,6 +42,9 @@ export type { BandCorner, Face } from "./structure/banding.js";
 // E6: hinge ↔ offset revalidation (#13) — non-blocking ⚠ when a #40 junction outreaches the hinge.
 export { checkHingeFit, HINGE_MAX_PROUD_MM10 } from "./structure/hingeFit.js";
 export type { HingeFitFinding } from "./structure/hingeFit.js";
+// E12: L8 emit-completeness gate — blocks export when a declared feature never emitted its machining.
+export { checkEmitCompleteness } from "./structure/emitCheck.js";
+export type { EmitFinding } from "./structure/emitCheck.js";
 export { parseSWJ008, parseSWJ008Document } from "./postprocessors/swj008Parse.js";
 export { canonicalizeParts, canonicalizePart } from "./core/canonical.js";
 export type {

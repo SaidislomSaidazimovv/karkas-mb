@@ -23,6 +23,9 @@ export type { BandCorner } from "./_engine/structure/banding";
 // E6: hinge ↔ offset revalidation (#13). The store derives it; U11 renders the ⚠.
 export { checkHingeFit, HINGE_MAX_PROUD_MM10 } from "./_engine/structure/hingeFit";
 export type { HingeFitFinding } from "./_engine/structure/hingeFit";
+// E12: L8 emit-completeness gate (blocks export on a missing machining emission).
+export { checkEmitCompleteness } from "./_engine/structure/emitCheck";
+export type { EmitFinding } from "./_engine/structure/emitCheck";
 export {
   divideSection,
   mergeSections,

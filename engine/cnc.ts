@@ -12,6 +12,7 @@ import { solveStructure } from "./structure/solve.js";
 import { applyDrilling } from "./structure/drilling.js";
 import { loadHardwareSpec } from "./catalogs/hardwareSpec.js";
 import { validateParts } from "./core/validate.js";
+import { checkEmitCompleteness } from "./structure/emitCheck.js";
 import { exportSWJ008 } from "./postprocessors/swj008.js";
 
 /**
@@ -36,6 +37,12 @@ export function exportModelToSWJ008(model: StructuralModel): string {
     throw new Error(
       `MACHINING_VALIDATION_FAILED: ${validation.findings.map((f) => f.code).join(", ")}`,
     );
+  }
+  // L8 emit-completeness gate (E12): a declared feature (glass rebate, doubling) that never produced
+  // its machining blocks the export — "not done until emitted" (v3 L8), caught on the cut output.
+  const emit = checkEmitCompleteness(model, parts);
+  if (emit.length > 0) {
+    throw new Error(`EMIT_INCOMPLETE: ${emit.map((f) => f.code).join(", ")}`);
   }
   const project: Project = { id: model.id, name: model.name, parts };
   return exportSWJ008(project);
