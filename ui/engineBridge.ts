@@ -20,6 +20,9 @@ export type { StabilityFinding, StabilityLevel } from "./_engine/structure/stabi
 // E4: corner band-transition (#39). U9 (Frame body) sets Component.bandTransition; cut-list reads this.
 export { bandCorners, resolveBandTransition } from "./_engine/structure/banding";
 export type { BandCorner } from "./_engine/structure/banding";
+// E6: hinge ↔ offset revalidation (#13). The store derives it; U11 renders the ⚠.
+export { checkHingeFit, HINGE_MAX_PROUD_MM10 } from "./_engine/structure/hingeFit";
+export type { HingeFitFinding } from "./_engine/structure/hingeFit";
 export {
   divideSection,
   mergeSections,

@@ -39,6 +39,9 @@ export type { StabilityFinding, StabilityLevel } from "./structure/stability.js"
 // E4: corner band-transition model (#39) — cosmetic + cut-list, not in SWJ008.
 export { bandCorners, resolveBandTransition } from "./structure/banding.js";
 export type { BandCorner, Face } from "./structure/banding.js";
+// E6: hinge ↔ offset revalidation (#13) — non-blocking ⚠ when a #40 junction outreaches the hinge.
+export { checkHingeFit, HINGE_MAX_PROUD_MM10 } from "./structure/hingeFit.js";
+export type { HingeFitFinding } from "./structure/hingeFit.js";
 export { parseSWJ008, parseSWJ008Document } from "./postprocessors/swj008Parse.js";
 export { canonicalizeParts, canonicalizePart } from "./core/canonical.js";
 export type {
