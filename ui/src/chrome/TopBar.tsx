@@ -24,13 +24,12 @@ export function TopBar({
   onMenu?: () => void;
 }) {
   const price = useApp((s) => s.price_sum);
-  const openExport = usePanelUi((s) => s.openExport);
-  const openMenu = usePanelUi((s) => s.openMenu);
+  const open = usePanelUi((s) => s.open);
+  const toggle = usePanelUi((s) => s.toggle);
   // «Дальше»/«Готово» → CNC-export sheet, unless the host wires its own advance handler
-  const advance = onAdvance ?? openExport;
-  // ☰ → app menu (Слои · Экспорт …). v3: the hamburger is a MENU, distinct from the
-  // separate #i-layers icon — so it does NOT toggle the layers panel directly.
-  const menu = onMenu ?? openMenu;
+  const advance = onAdvance ?? (() => open("export"));
+  // ☰ → app menu (Слои · Экспорт …) — a TOGGLE of the single overlay slot (tap again to close).
+  const menu = onMenu ?? (() => toggle("menu"));
   return (
     <View>
       <View style={styles.bar}>

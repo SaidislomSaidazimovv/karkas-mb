@@ -9,6 +9,7 @@
 // visual affordance for now — wires to 3D-hide when store.hiddenIds lands (P, gated).
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
+import { usePanelUi } from "../sheets/panelUi";
 import type { PanelRole, StructuralModel } from "../../engineBridge";
 import { C, FONT, R } from "../../theme";
 import { Icon, type IconName } from "../chrome/Icon";
@@ -72,6 +73,7 @@ export function LayersPanel() {
   const hiddenIds = useApp((s) => s.hiddenIds);
   const toggleHidden = useApp((s) => s.toggleHidden);
   const showAll = useApp((s) => s.showAll);
+  const close = usePanelUi((s) => s.close);
   const rows = model ? modelToRows(model) : [];
 
   const isSelected = (r: Row) =>
@@ -81,13 +83,16 @@ export function LayersPanel() {
     <View style={styles.panel}>
       <View style={styles.head}>
         <Text style={styles.title}>Слои · структура</Text>
-        {hiddenIds.length > 0 ? (
-          <Pressable hitSlop={6} onPress={showAll}>
-            <Text style={styles.showAll}>Показать все</Text>
+        <View style={styles.headRight}>
+          {hiddenIds.length > 0 ? (
+            <Pressable hitSlop={6} onPress={showAll}>
+              <Text style={styles.showAll}>Показать все</Text>
+            </Pressable>
+          ) : null}
+          <Pressable style={styles.close} hitSlop={6} onPress={close}>
+            <Icon name="close" size={18} color={C.ink} />
           </Pressable>
-        ) : (
-          <Icon name="layers" size={18} color={C.ink2} />
-        )}
+        </View>
       </View>
       {rows.length === 0 ? (
         <Text style={styles.empty}>Нет деталей</Text>
@@ -143,6 +148,8 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
   },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  headRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+  close: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   title: { fontFamily: FONT, fontSize: 17, fontWeight: "800", color: C.ink },
   showAll: { fontFamily: FONT, fontSize: 13, fontWeight: "700", color: C.selLine },
   empty: { fontFamily: FONT, fontSize: 13, color: C.ink2, paddingVertical: 12, textAlign: "center" },

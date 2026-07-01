@@ -71,9 +71,7 @@ export function SelectionSheet() {
   const eachDiffers = useApp((s) => s.eachDiffers);
   const setBandTransition = useApp((s) => s.setBandTransition);
   const setJunction = useApp((s) => s.setJunction);
-  const addOpen = usePanelUi((s) => s.addOpen);
-  const exportOpen = usePanelUi((s) => s.exportOpen);
-  const menuOpen = usePanelUi((s) => s.menuOpen);
+  const overlay = usePanelUi((s) => s.overlay);
   // non-blocking ⚠ findings (E7/E6/E9) — shown for the selected instance(s)
   const stability = useApp((s) => s.stability);
   const hingeFit = useApp((s) => s.hingeFit);
@@ -116,10 +114,12 @@ export function SelectionSheet() {
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<(() => void) | null>(null);
 
-  // ☰ menu, «Готово»/CNC-export and «Добавить» drill take over the sheet zone (selection-independent)
-  if (menuOpen) return <MenuSheet />;
-  if (exportOpen) return <ExportSheet />;
-  if (addOpen) return <AddSheet />;
+  // The single bottom-sheet slot (panelUi): a takeover flow owns the zone, else the selection card.
+  // layers / move / resize / divide render elsewhere (LayersPanel / CanvasView), so yield to them.
+  if (overlay === "menu") return <MenuSheet />;
+  if (overlay === "export") return <ExportSheet />;
+  if (overlay === "add") return <AddSheet />;
+  if (overlay !== "none") return null; // layers/move/resize/divide own the slot
   if (selection.kind === "none") return null;
 
   const isGroup = selection.kind === "group" && !selection.isUnique;

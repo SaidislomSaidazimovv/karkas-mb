@@ -50,7 +50,7 @@ export function AddSheet() {
   const drill = usePanelUi((s) => s.drill);
   const drillInto = usePanelUi((s) => s.drillInto);
   const drillBack = usePanelUi((s) => s.drillBack);
-  const closeAdd = usePanelUi((s) => s.closeAdd);
+  const closeAdd = usePanelUi((s) => s.close);
   const addPart = useApp((s) => s.addPart);
   const sectionId = useApp((s) => s.selection.sectionId);
 

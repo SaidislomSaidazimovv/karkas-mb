@@ -10,11 +10,13 @@ import { CanvasView } from "./src/canvas/CanvasView";
 import { SelectionSheet } from "./src/sheets/SelectionSheet";
 import { LayersPanel } from "./src/layers/LayersPanel";
 import { BottomToolbar } from "./src/toolbar/BottomToolbar";
-import { useApp } from "./store/appStore";
+import { usePanelUi } from "./src/sheets/panelUi";
 import { C } from "./theme";
 
 export default function App() {
-  const layersOpen = useApp((s) => s.layersOpen);
+  // Exactly one bottom overlay at a time (panelUi is the single coordinator). The layers panel and
+  // the selection card share that one slot; the bottom toolbar (mode/verb switch) always shows.
+  const overlay = usePanelUi((s) => s.overlay);
   return (
     <View style={styles.root}>
       <View style={styles.phone}>
@@ -23,8 +25,9 @@ export default function App() {
           <Rail />
           <CanvasView />
         </View>
-        <SelectionSheet />
-        {layersOpen && <LayersPanel />}
+        {/* Single bottom-sheet slot: layers OR the selection/flow card (SelectionSheet yields to
+            move/resize/divide, which CanvasView renders as its own bottom sheet). */}
+        {overlay === "layers" ? <LayersPanel /> : <SelectionSheet />}
         <BottomToolbar />
       </View>
       <StatusBar style="dark" />

@@ -43,7 +43,8 @@ const SLOTS: Record<Mode, Slot[]> = {
 
 export function BottomToolbar() {
   const mode = useApp((s) => s.mode);
-  const openAdd = usePanelUi((s) => s.openAdd);
+  const open = usePanelUi((s) => s.open);
+  const close = usePanelUi((s) => s.close);
   const slots = SLOTS[mode];
   // Active verb is local toolbar state (the selected verb within a mode); the first
   // non-reserved slot is the default. Switching mode resets it via the keyed default below.
@@ -63,7 +64,10 @@ export function BottomToolbar() {
             disabled={slot.reserved}
             onPress={() => {
               setActiveByMode((m) => ({ ...m, [mode]: slot.key }));
-              if (mode === "build" && slot.key === "add") openAdd(); // «Добавить» → drill-sheet
+              // «Добавить» opens the add drill-sheet; any other verb clears a stray overlay so the
+              // single bottom slot never stacks two panels.
+              if (mode === "build" && slot.key === "add") open("add");
+              else close();
             }}
           >
             <View style={[styles.ic, on && styles.icOn, slot.reserved && styles.icReserved]}>

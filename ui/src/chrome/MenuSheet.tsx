@@ -7,24 +7,21 @@
 // (Menu kept minimal — Save/Stages rows land when those features exist.)
 
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { useApp } from "../../store/appStore";
 import { usePanelUi } from "../sheets/panelUi";
 import { Grab, MenuRow, sheetBase } from "../sheets/controls";
 import { C, FONT } from "../../theme";
 import { Icon } from "./Icon";
 
 export function MenuSheet() {
-  const toggleLayers = useApp((s) => s.toggleLayers);
-  const layersOpen = useApp((s) => s.layersOpen);
-  const closeMenu = usePanelUi((s) => s.closeMenu);
-  const openExport = usePanelUi((s) => s.openExport);
+  const open = usePanelUi((s) => s.open);
+  const close = usePanelUi((s) => s.close);
 
   return (
     <View style={[sheetBase, styles.over]}>
       <Grab />
       <View style={styles.head}>
         <Text style={styles.title}>Меню</Text>
-        <Pressable style={styles.close} onPress={closeMenu} hitSlop={6}>
+        <Pressable style={styles.close} onPress={close} hitSlop={6}>
           <Icon name="close" size={18} color={C.ink} />
         </Pressable>
       </View>
@@ -32,17 +29,14 @@ export function MenuSheet() {
       <MenuRow
         icon="layers"
         title="Слои · структура"
-        sub={layersOpen ? "открыто · нажмите, чтобы скрыть" : "дерево деталей · видимость"}
-        onPress={() => {
-          toggleLayers();
-          closeMenu();
-        }}
+        sub="дерево деталей · видимость"
+        onPress={() => open("layers")}
       />
       <MenuRow
         icon="target"
         title="Экспорт На ЧПУ"
         sub="крой-лист · формат SWJ008"
-        onPress={openExport}
+        onPress={() => open("export")}
       />
     </View>
   );

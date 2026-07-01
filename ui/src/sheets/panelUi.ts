@@ -1,42 +1,44 @@
-// src/sheets/panelUi.ts — T2-LOCAL ephemeral panel UI state (Zustand). OWNER: T2.
+// src/sheets/panelUi.ts — the SINGLE overlay coordinator for the whole screen. OWNER: P (integration).
 //
-// NOT the app store. ui/store/appStore.ts (P) holds shared app truth (model/selection/mode).
-// This holds only T2 panel-chrome state that no other track needs: which bottom-sheet flow is
-// open and how deep the «Добавить» drill-menu is navigated. Kept separate so it never collides
-// with P's store and carries no engine data.
+// Before: overlay state was scattered across appStore.layersOpen, this store's add/export/menu, and
+// CanvasView's local move/resize/divide — so several bottom panels could show at once and pile up.
+// Now there is ONE active overlay at a time. Opening any overlay closes every other. The canvas
+// handles, the ☰ menu, the layers panel, the add/export flows and the selection card all share this
+// one slot. This holds only chrome state (which overlay + how deep the Add drill is) — no engine data.
 import { create } from "zustand";
 
+/** The one bottom overlay that may be visible. "none" = only the selection card (if a part is
+ *  selected) shows; everything else is a takeover of the single bottom-sheet slot. */
+export type Overlay =
+  | "none"
+  | "add"
+  | "export"
+  | "menu"
+  | "layers"
+  | "move"
+  | "resize"
+  | "divide";
+
 interface PanelUiState {
-  /** «Добавить» drill-sheet open? */
-  addOpen: boolean;
-  /** Drill path — child-node ids entered, deepest last. Empty = the Add root. */
+  overlay: Overlay;
+  /** Add-flow drill path — child-node ids entered, deepest last. Empty = the Add root. */
   drill: readonly string[];
-  /** «Готово»/CNC-export sheet open? (cut-list preview + «Экспорт На ЧПУ») */
-  exportOpen: boolean;
-  /** ☰ app-menu sheet open? (v3: ☰ is a menu, distinct from the layers icon). */
-  menuOpen: boolean;
-  openAdd(): void;
-  closeAdd(): void;
+  /** Open an overlay (single slot — closes any other). Resets the Add drill. */
+  open(o: Overlay): void;
+  /** Toggle an overlay (☰ / layers behave as toggles). */
+  toggle(o: Overlay): void;
+  /** Close whatever is open → back to "none". */
+  close(): void;
   drillInto(nodeId: string): void;
   drillBack(): void;
-  openExport(): void;
-  closeExport(): void;
-  openMenu(): void;
-  closeMenu(): void;
 }
 
-// The bottom-sheet zone shows ONE flow at a time, so opening any flow closes the others.
 export const usePanelUi = create<PanelUiState>((set, get) => ({
-  addOpen: false,
+  overlay: "none",
   drill: [],
-  exportOpen: false,
-  menuOpen: false,
-  openAdd: () => set({ addOpen: true, drill: [], exportOpen: false, menuOpen: false }),
-  closeAdd: () => set({ addOpen: false, drill: [] }),
+  open: (o) => set({ overlay: o, drill: [] }),
+  toggle: (o) => set({ overlay: get().overlay === o ? "none" : o, drill: [] }),
+  close: () => set({ overlay: "none", drill: [] }),
   drillInto: (nodeId) => set({ drill: [...get().drill, nodeId] }),
   drillBack: () => set({ drill: get().drill.slice(0, -1) }),
-  openExport: () => set({ exportOpen: true, addOpen: false, menuOpen: false }),
-  closeExport: () => set({ exportOpen: false }),
-  openMenu: () => set({ menuOpen: true, addOpen: false, exportOpen: false }),
-  closeMenu: () => set({ menuOpen: false }),
 }));

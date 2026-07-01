@@ -40,7 +40,7 @@ export function ExportSheet() {
   const scene = useApp((s) => s.scene);
   const price = useApp((s) => s.price_sum);
   const exportCutFile = useApp((s) => s.exportCutFile);
-  const closeExport = usePanelUi((s) => s.closeExport);
+  const closeExport = usePanelUi((s) => s.close);
 
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);

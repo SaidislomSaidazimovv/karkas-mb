@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
+import { usePanelUi } from "../sheets/panelUi";
 import { C, FONT, R } from "../../theme";
 import { CanvasScene } from "./CanvasScene";
 import { DivideSheet } from "./DivideSheet";
@@ -53,12 +54,20 @@ export function CanvasView() {
   );
 
   const [orbit, setOrbit] = useState<Orbit>([0.5, 0.6]);
-  const [divideOpen, setDivideOpen] = useState(false);
-  const [resizeOpen, setResizeOpen] = useState(false);
+  // The move/resize/divide sheets live in the SHARED single overlay slot (panelUi) — same slot as
+  // add/export/menu/layers — so only one bottom panel is ever visible at a time.
+  const overlay = usePanelUi((s) => s.overlay);
+  const openOverlay = usePanelUi((s) => s.open);
+  const closeOverlay = usePanelUi((s) => s.close);
+  const divideOpen = overlay === "divide";
+  const resizeOpen = overlay === "resize";
+  const moveOpen = overlay === "move";
+  // No bottom sheet open → the canvas may show its editing affordances; when a sheet owns the slot,
+  // the on-canvas chips/handles/buttons hide so they don't pile up over the sheet.
+  const canvasClear = overlay === "none";
   // Divider selection is UI-local: engine selectByTap resolves only component (instance) parts,
   // NOT divider parts (`…__div_<lineId>`), so we capture the tapped divider here to drive moveLine.
   const [moveDivId, setMoveDivId] = useState<string | null>(null);
-  const [moveOpen, setMoveOpen] = useState(false);
   const dividerSel = moveDivId !== null;
   // Merge (blocker #2) is a UI-local multi-select: collect the leaf sections of tapped panels,
   // then `merge` the adjacent ones. Store selection isn't used (mutually exclusive with it).
@@ -91,7 +100,7 @@ export function CanvasView() {
   const applyDivide = (opts: DivideOpts) => {
     // Real split: selection carries the leaf sectionId → engine divide → model/scene re-derive.
     if (selection.sectionId) divide(selection.sectionId, opts);
-    setDivideOpen(false);
+    closeOverlay();
   };
   const onOrbitDelta = (dPol: number, dAz: number) =>
     setOrbit(([p, a]) => [clamp(p + dPol, POL_MIN, POL_MAX), a + dAz]);
@@ -113,7 +122,7 @@ export function CanvasView() {
       tapPart(id); // engine returns null for dividers → clears the instance-selection (exclusive)
     } else {
       setMoveDivId(null);
-      setMoveOpen(false);
+      closeOverlay();
       tapPart(id);
     }
   };
@@ -128,7 +137,7 @@ export function CanvasView() {
     if (entering) {
       clearSelection();
       setMoveDivId(null);
-      setMoveOpen(false);
+      closeOverlay();
     }
   };
   const applyMerge = () => {
@@ -139,11 +148,11 @@ export function CanvasView() {
   const deselectAll = () => {
     clearSelection();
     setMoveDivId(null);
-    setMoveOpen(false);
+    closeOverlay();
     setMergeMode(false);
     setMergeSel([]);
-    setDivideOpen(false);
-    setResizeOpen(false);
+    closeOverlay();
+    closeOverlay();
   };
   const onLoadLCorner = () => {
     if (isLCorner) return; // already L-corner
@@ -183,7 +192,7 @@ export function CanvasView() {
         </View>
 
         {/* Merge mode toggle (Build) — collect adjacent sections, then «Объединить». */}
-        {mode === "build" && (
+        {mode === "build" && canvasClear && (
           <Pressable
             style={[styles.mergePill, mergeMode && styles.mergePillOn]}
             onPress={toggleMergeMode}
@@ -193,7 +202,7 @@ export function CanvasView() {
         )}
 
         {/* Info chip */}
-        {!mergeMode && hasSel && (
+        {!mergeMode && hasSel && canvasClear && (
           <View style={styles.chip}>
             <Text style={styles.chipT}>
               {selBoard?.name ?? (selection.isUnique ? "Деталь" : "Тип")}
@@ -207,15 +216,15 @@ export function CanvasView() {
         )}
 
         {/* Divider selected (UI-local) — chip + a single ↕ move handle. */}
-        {dividerSel && (
+        {dividerSel && canvasClear && (
           <View style={styles.chip}>
             <Text style={styles.chipT}>Перегородка</Text>
             <Text style={styles.chipS}>сдвиг разделителя</Text>
           </View>
         )}
-        {dividerSel && (
+        {dividerSel && canvasClear && (
           <View style={styles.handles} pointerEvents="box-none">
-            <Handle glyph="↕" onPress={() => setMoveOpen(true)} />
+            <Handle glyph="↕" onPress={() => openOverlay("move")} />
           </View>
         )}
 
@@ -231,25 +240,19 @@ export function CanvasView() {
           </View>
         )}
 
-        {/* Floating handles (↻ rotate · ↕ up/down · ⤢ resize) — appear on selection. */}
-        {hasSel && (
+        {/* Floating handles (⤢ resize) — appear on a selected part in Build mode, no sheet open.
+            (↻ rotate / ↕ move have no engine op yet — omitted to avoid dead controls.) */}
+        {hasSel && mode === "build" && canvasClear && (
           <View style={styles.handles} pointerEvents="box-none">
-            <Handle glyph="↻" onPress={() => {/* TODO: rotate op (no engine rotate yet) */}} />
-            <Handle glyph="↕" onPress={() => {/* TODO: reposition op (no engine move yet) */}} />
-            <Handle glyph="⤢" onPress={() => setResizeOpen(true)} />
+            <Handle glyph="⤢" onPress={() => openOverlay("resize")} />
           </View>
         )}
 
-        {/* Divide gesture (Build mode, real split needs a leaf section). */}
-        {hasSel && mode === "build" && selection.sectionId && (
-          <>
-            {divideOpen && <View style={styles.divGuide} pointerEvents="none" />}
-            {!divideOpen && (
-              <Pressable style={styles.divBtn} onPress={() => setDivideOpen(true)}>
-                <Text style={styles.divBtnT}>Разделить</Text>
-              </Pressable>
-            )}
-          </>
+        {/* Divide (Build mode, real split needs a leaf section, no sheet open). */}
+        {hasSel && mode === "build" && selection.sectionId && canvasClear && (
+          <Pressable style={styles.divBtn} onPress={() => openOverlay("divide")}>
+            <Text style={styles.divBtnT}>Разделить</Text>
+          </Pressable>
         )}
 
         {/* Merge confirm / hint — while collecting sections. */}
@@ -305,7 +308,7 @@ export function CanvasView() {
 
         {/* Divide modes sheet — opens over the HUD when «Разделить» is tapped. */}
         {divideOpen && hasSel && mode === "build" && selection.sectionId && (
-          <DivideSheet onApply={applyDivide} onClose={() => setDivideOpen(false)} />
+          <DivideSheet onApply={applyDivide} onClose={() => closeOverlay()} />
         )}
 
         {/* Resize sheet — opens from the ⤢ handle; drives the owning block's width/depth. */}
@@ -314,13 +317,13 @@ export function CanvasView() {
             widthMm={Math.round(block.box.w / 10)}
             depthMm={Math.round(block.box.d / 10)}
             onResize={applyResize}
-            onClose={() => setResizeOpen(false)}
+            onClose={() => closeOverlay()}
           />
         )}
 
         {/* Move sheet — opens from the divider's ↕ handle; nudges the line with a scope. */}
         {moveOpen && dividerSel && (
-          <MoveSheet onMove={applyMove} onClose={() => setMoveOpen(false)} />
+          <MoveSheet onMove={applyMove} onClose={() => closeOverlay()} />
         )}
       </View>
     </View>
