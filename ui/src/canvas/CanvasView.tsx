@@ -21,10 +21,6 @@ import { DEMO_PREVIEW, layoutToScene, previewToScene, sceneDimsMm, type OrbitLik
 import type { DivideOpts } from "../../store/appStore";
 import type { Scope, StructuralModel } from "../../engineBridge";
 
-const AZ_STEP = 0.05; // rad per tick — yaw
-const POL_STEP = 0.04; // rad per tick — pitch
-const POL_MIN = 0.06;
-const POL_MAX = 1.45;
 
 // Web-only: keep a touch-drag on the joystick from becoming a browser scroll/zoom before the
 // PanResponder sees it (the reason it "did nothing" on a touchscreen). RN's ViewStyle has no
@@ -62,7 +58,10 @@ export function CanvasView() {
   // OrbitControls (in CanvasScene) owns the camera — drag to orbit, wheel/pinch to zoom. The joystick
   // nudges it through this ref.
   const controlsRef = useRef<OrbitLike | null>(null);
-  const knobEl = useRef<any>(null); // web: the knob's DOM node (raw pointer drag target)
+  const joyEl = useRef<any>(null); // web: the joystick base DOM node (the interaction surface)
+  const knobDom = useRef<any>(null); // web: the knob DOM node (moved within the base while held)
+  const joyVec = useRef({ x: 0, y: 0 }); // normalised push -1..1 while the stick is held
+  const joyHeld = useRef(false); // true between pointerdown and release
   // The move/resize/divide sheets live in the SHARED single overlay slot (panelUi) — same slot as
   // add/export/menu/layers — so only one bottom panel is ever visible at a time.
   const overlay = usePanelUi((s) => s.overlay);
@@ -122,50 +121,88 @@ export function CanvasView() {
   };
   const resetCam = () => controlsRef.current?.reset();
 
-  // The centre knob is a drag stick: press it and drag to orbit (dx→yaw, dy→pitch). RN's
-  // PanResponder proved unreliable on a real touchscreen — the browser stole the finger-drag as a
-  // page scroll before the responder could claim it. So on web we bind RAW pointer events to the
-  // knob's DOM node and call setPointerCapture: the browser then routes every pointermove to the
-  // knob (even off-element) until release — the reference-quality way to drag on the web. The
-  // arrows (separate Pressables) still give discrete nudges; dragging empty canvas still orbits via
-  // OrbitControls. Deltas are incremental → smooth.
+  // A REAL analog joystick (like a game controller): press anywhere on the base, the knob slides
+  // toward your finger (clamped inside the ring), and the camera orbits CONTINUOUSLY in that
+  // direction for as long as you hold — push further = orbit faster. Release → the knob springs
+  // back to centre and motion stops. Horizontal push → yaw (left/right around), vertical → pitch
+  // (tilt up/down). This is NOT a delta-drag; it's a held direction stick.
+  //
+  // Implemented with raw DOM pointer events on the base + setPointerCapture (RN PanResponder is
+  // unreliable on web — the browser steals a touch-drag as a scroll) and a requestAnimationFrame
+  // loop that applies the current push each frame. The knob is moved via a direct CSS transform so
+  // it tracks the finger with no React re-render.
   useEffect(() => {
-    const el = knobEl.current;
-    if (!el || typeof el.addEventListener !== "function") return; // native → no-op
-    let last: { x: number; y: number } | null = null;
-    const onDown = (e: PointerEvent) => {
-      last = { x: e.clientX, y: e.clientY };
-      try {
-        el.setPointerCapture(e.pointerId);
-      } catch {
-        /* not all engines support capture — pointermove on document still fires */
+    const base = joyEl.current;
+    if (!base || typeof base.addEventListener !== "function") return; // native → no-op
+    const knob = knobDom.current;
+    const MAX = 32; // px the knob can travel from centre
+    const SPEED = 0.03; // rad per frame at full push
+    let raf = 0;
+    const moveKnob = (px: number, py: number) => {
+      if (knob) knob.style.transform = `translate(${px}px, ${py}px)`;
+    };
+    const loop = () => {
+      if (!joyHeld.current) return;
+      const v = joyVec.current;
+      // vertical push → polar (matches the ▲ arrow: up = tilt toward the top), horizontal → azimuth.
+      nudgeCam(v.y * SPEED, v.x * SPEED);
+      raf = requestAnimationFrame(loop);
+    };
+    const compute = (e: PointerEvent) => {
+      const r = base.getBoundingClientRect();
+      let dx = e.clientX - (r.x + r.width / 2);
+      let dy = e.clientY - (r.y + r.height / 2);
+      const mag = Math.hypot(dx, dy);
+      if (mag > MAX) {
+        dx = (dx / mag) * MAX;
+        dy = (dy / mag) * MAX;
       }
+      moveKnob(dx, dy);
+      joyVec.current = { x: dx / MAX, y: dy / MAX };
+    };
+    const onDown = (e: PointerEvent) => {
+      joyHeld.current = true;
+      if (knob) knob.style.transition = "none"; // track the finger instantly while dragging
+      try {
+        base.setPointerCapture(e.pointerId);
+      } catch {
+        /* engines without capture still get document-level pointermove */
+      }
+      compute(e);
       e.preventDefault();
       e.stopPropagation();
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(loop);
     };
     const onMove = (e: PointerEvent) => {
-      if (!last) return;
-      nudgeCam(-(e.clientY - last.y) * 0.01, (e.clientX - last.x) * 0.01);
-      last = { x: e.clientX, y: e.clientY };
+      if (!joyHeld.current) return;
+      compute(e);
       e.preventDefault();
     };
     const onUp = (e: PointerEvent) => {
-      last = null;
+      joyHeld.current = false;
+      joyVec.current = { x: 0, y: 0 };
+      if (knob) {
+        knob.style.transition = "transform 0.16s ease-out"; // spring back to centre
+        moveKnob(0, 0);
+      }
       try {
-        el.releasePointerCapture(e.pointerId);
+        base.releasePointerCapture(e.pointerId);
       } catch {
         /* noop */
       }
+      cancelAnimationFrame(raf);
     };
-    el.addEventListener("pointerdown", onDown);
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", onUp);
+    base.addEventListener("pointerdown", onDown);
+    base.addEventListener("pointermove", onMove);
+    base.addEventListener("pointerup", onUp);
+    base.addEventListener("pointercancel", onUp);
     return () => {
-      el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      el.removeEventListener("pointercancel", onUp);
+      cancelAnimationFrame(raf);
+      base.removeEventListener("pointerdown", onDown);
+      base.removeEventListener("pointermove", onMove);
+      base.removeEventListener("pointerup", onUp);
+      base.removeEventListener("pointercancel", onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -352,13 +389,14 @@ export function CanvasView() {
               clusters; otherwise a cluster's row box covers the knob and eats its press. DRAG the
               centre stick to orbit smoothly; tap an arrow for a discrete nudge. (Dragging the 3D
               model + wheel/pinch zoom = OrbitControls.) */}
-          <View style={styles.joy} pointerEvents="box-none">
-            <JoyArrow style={styles.joyUp} glyph="▲" onChange={() => nudgeCam(-POL_STEP, 0)} />
-            <JoyArrow style={styles.joyDn} glyph="▼" onChange={() => nudgeCam(POL_STEP, 0)} />
-            <JoyArrow style={styles.joyLf} glyph="◀" onChange={() => nudgeCam(0, -AZ_STEP)} />
-            <JoyArrow style={styles.joyRt} glyph="▶" onChange={() => nudgeCam(0, AZ_STEP)} />
-            {/* Centre stick — press & drag to orbit (raw pointer handlers bound in the effect). */}
-            <View ref={knobEl} style={[styles.knob, JOY_NO_TOUCH_SCROLL]} />
+          <View ref={joyEl} style={[styles.joy, JOY_NO_TOUCH_SCROLL]}>
+            {/* Direction markings on the base (visual only — the whole base is the stick). */}
+            <Text style={[styles.joyMark, styles.joyUp]} pointerEvents="none">▲</Text>
+            <Text style={[styles.joyMark, styles.joyDn]} pointerEvents="none">▼</Text>
+            <Text style={[styles.joyMark, styles.joyLf]} pointerEvents="none">◀</Text>
+            <Text style={[styles.joyMark, styles.joyRt]} pointerEvents="none">▶</Text>
+            {/* Centre stick — press & push in a direction; the effect drives it + orbits the camera. */}
+            <View ref={knobDom} style={styles.knob} pointerEvents="none" />
           </View>
         </View>
         )}
@@ -409,38 +447,6 @@ function plural(n: number): string {
   if (m10 === 1 && m100 !== 11) return "деталь";
   if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return "детали";
   return "деталей";
-}
-
-/** A joystick arrow that fires `onChange` continuously while held. */
-function JoyArrow({
-  glyph,
-  style,
-  onChange,
-}: {
-  glyph: string;
-  style: object;
-  onChange: () => void;
-}) {
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const stop = () => {
-    if (timer.current) {
-      clearInterval(timer.current);
-      timer.current = null;
-    }
-  };
-  useEffect(() => stop, []);
-  return (
-    <Pressable
-      style={[styles.joyAr, style]}
-      onPressIn={() => {
-        onChange();
-        timer.current = setInterval(onChange, 30);
-      }}
-      onPressOut={stop}
-    >
-      <Text style={styles.joyArT}>{glyph}</Text>
-    </Pressable>
-  );
 }
 
 function Handle({ glyph, onPress }: { glyph: string; onPress: () => void }) {
@@ -646,16 +652,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   knob: { width: 50, height: 50, borderRadius: 999, backgroundColor: "#fff", borderWidth: 2, borderColor: "rgba(150,150,148,0.55)", shadowColor: "#141414", shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
-  joyAr: {
+  joyMark: {
     position: "absolute",
-    width: 26,
-    height: 26,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 20,
+    textAlign: "center",
+    color: "#b2b2b0",
+    fontSize: 12,
   },
-  joyArT: { color: "#9a9a98", fontSize: 13 },
-  joyUp: { top: 4, left: "50%", marginLeft: -13 },
-  joyDn: { bottom: 4, left: "50%", marginLeft: -13 },
-  joyLf: { left: 6, top: "50%", marginTop: -13 },
-  joyRt: { right: 6, top: "50%", marginTop: -13 },
+  joyUp: { top: 6, left: "50%", marginLeft: -10 },
+  joyDn: { bottom: 6, left: "50%", marginLeft: -10 },
+  joyLf: { left: 8, top: "50%", marginTop: -8 },
+  joyRt: { right: 8, top: "50%", marginTop: -8 },
 });
