@@ -88,3 +88,37 @@ export function buildDemoModel(): StructuralModel {
 
   return { id: "demo", name: "Демо-шкаф", blocks: [block], parts: [] };
 }
+
+/**
+ * An L-corner wardrobe (blocker #1). Two legs meet at a corner, each with its own depth
+ * (CONSTRUCTION_FRAME_v3 §7 Piece 1: leg-A depth 600mm, leg-B depth 400mm). Fresh objects each call.
+ */
+export function buildLCornerModel(): StructuralModel {
+  const H = 7200; // 720 mm height (shared by both legs)
+  const legA = { length_mm10: 10000, depth_mm10: 6000 }; // 1000mm run × 600mm deep
+  const legB = { length_mm10: 8000, depth_mm10: 4000 }; //  800mm run × 400mm deep
+
+  const root: Section = {
+    id: "sec_l",
+    box: { x: 0, y: 0, z: 0, w: legA.length_mm10, h: H, d: legA.depth_mm10 },
+    dividers: [],
+    children: [],
+    instanceIds: [],
+    purpose: null,
+  };
+  const zone: Zone = { id: "z_l", name: "Корпус", rule: "manual", root };
+
+  const block: Block = {
+    id: "blk_l",
+    name: "Г-образный шкаф",
+    box: { x: 0, y: 0, z: 0, w: legA.length_mm10, h: H, d: legA.depth_mm10 + legB.length_mm10 },
+    footprint: { legA, legB },
+    zones: [zone],
+    components: [],
+    instances: [],
+    lines: [],
+    rows: [],
+  };
+
+  return { id: "demo_l", name: "Г-демо", blocks: [block], parts: [] };
+}

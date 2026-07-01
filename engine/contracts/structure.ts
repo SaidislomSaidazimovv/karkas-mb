@@ -252,6 +252,26 @@ export interface Row {
  * definitions used inside it, every placement of those components, the
  * first-class dividing lines, and the rows it participates in.
  */
+/**
+ * One leg of an L-corner block (CONSTRUCTION_FRAME_v3 §7 Piece 1: "set leg-A depth 600, leg-B
+ * depth 400 — at block/leg level, not panel"). Its length runs along its wall; its depth is
+ * per-leg (blocker #3). Height is the block's (shared by both legs).
+ */
+export interface LegSpec {
+  readonly length_mm10: mm10;
+  readonly depth_mm10: mm10;
+}
+
+/**
+ * L-corner footprint (blocker #1): "block can be L, not just box; the corner object owns the
+ * depth-step." Two legs meet at a corner; the corner auto-emits filler(s) (blocker #6). Present
+ * only on L-blocks — a rectangular block leaves it absent and uses `box`.
+ */
+export interface LCornerFootprint {
+  readonly legA: LegSpec;
+  readonly legB: LegSpec;
+}
+
 export interface Block {
   readonly id: BlockId;
   readonly name: string;
@@ -261,6 +281,8 @@ export interface Block {
   readonly instances: readonly Instance[];
   readonly lines: readonly Line[];
   readonly rows: readonly Row[];
+  /** L-corner footprint (blocker #1). Absent = a plain rectangular block (`box`). */
+  readonly footprint?: LCornerFootprint;
 }
 
 // ---------------------------------------------------------------------------

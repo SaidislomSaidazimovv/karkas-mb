@@ -137,15 +137,44 @@ function glazedGridParts(idBase: string, name: string, length: mm10, width: mm10
 }
 
 /** Carcass box: two sides (full height × depth) + top + bottom (inner width × depth). */
+/** Five carcass panels for a rectangular volume (idBase-prefixed). `omitSideR` drops the right
+ *  side — used at an L-corner where one leg abuts the other (avoids a doubled wall). */
+function boxCarcass(idBase: string, label: string, w: mm10, h: mm10, d: mm10, omitSideR = false): Part[] {
+  const innerW = w - 2 * BOARD_MM10;
+  const ps = [
+    panel(`${idBase}__side_l`, `${label}Бок левый`, h, d, frontBand()),
+    panel(`${idBase}__side_r`, `${label}Бок правый`, h, d, frontBand()),
+    panel(`${idBase}__top`, `${label}Верх`, innerW, d, frontBand()),
+    panel(`${idBase}__bottom`, `${label}Низ`, innerW, d, frontBand()),
+    panel(`${idBase}__back`, `${label}Задняя стенка`, w, h), // back is hidden — not banded
+  ];
+  return omitSideR ? ps.filter((p) => !p.id.endsWith("__side_r")) : ps;
+}
+
 function carcassParts(block: Block): Part[] {
   const { w, h, d } = block.box;
-  const innerW = w - 2 * BOARD_MM10;
+  return boxCarcass(block.id, "", w, h, d);
+}
+
+// Corner-filler width (blocker #6) — a narrow strip that bridges the L junction. NOT fixture-
+// grounded; a reasonable default, confirm at the factory (S3-E7).
+const CORNER_FILLER_W: mm10 = 500; // 50 mm
+
+/**
+ * An L-corner block (blocker #1: "block can be L, not just box; the corner object owns the
+ * depth-step") → the L carcass: leg-A's carcass + leg-B's carcass (its side that abuts leg-A
+ * omitted — the corner join) + a corner filler (blocker #6). Each leg carries its own depth
+ * (blocker #3). Dimensions only — the 3D L placement is solveLayout's job (follow-up).
+ * (Judgment, flagged: which leg omits its corner side, and the filler width, are not in v3 —
+ * v3 grounds the L-block + per-leg depth + "auto-emit filler"; these are the emit details.)
+ */
+function lCornerParts(block: Block): Part[] {
+  const fp = block.footprint!;
+  const h = block.box.h;
   return [
-    panel(`${block.id}__side_l`, "Бок левый", h, d, frontBand()),
-    panel(`${block.id}__side_r`, "Бок правый", h, d, frontBand()),
-    panel(`${block.id}__top`, "Верх", innerW, d, frontBand()),
-    panel(`${block.id}__bottom`, "Низ", innerW, d, frontBand()),
-    panel(`${block.id}__back`, "Задняя стенка", w, h), // back panel is hidden — not banded
+    ...boxCarcass(`${block.id}__legA`, "Плечо A · ", fp.legA.length_mm10, h, fp.legA.depth_mm10),
+    ...boxCarcass(`${block.id}__legB`, "Плечо B · ", fp.legB.length_mm10, h, fp.legB.depth_mm10, true),
+    panel(`${block.id}__corner_filler`, "Угловая планка", h, CORNER_FILLER_W, frontBand()),
   ];
 }
 
@@ -205,7 +234,7 @@ function instanceParts(block: Block, inst: Instance): Part[] {
 export function solveStructure(model: StructuralModel): Part[] {
   const parts: Part[] = [];
   for (const block of model.blocks) {
-    parts.push(...carcassParts(block));
+    parts.push(...(block.footprint ? lCornerParts(block) : carcassParts(block)));
     for (const line of block.lines) parts.push(dividerPart(block, line));
     for (const inst of block.instances) parts.push(...instanceParts(block, inst));
   }
