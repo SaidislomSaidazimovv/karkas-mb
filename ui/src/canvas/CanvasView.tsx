@@ -9,7 +9,7 @@
 // through to the 3D. DEMO_PREVIEW shows only if the live scene is ever empty.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, PanResponder, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
 import { usePanelUi } from "../sheets/panelUi";
 import { C, FONT, R } from "../../theme";
@@ -300,7 +300,7 @@ export function CanvasView() {
               glyph="▶"
               onChange={() => setOrbit(([p, a]) => [p, a + AZ_STEP])}
             />
-            <Pressable style={styles.knob} onPress={() => setOrbit([0.5, 0.6])} hitSlop={4} />
+            <JoyKnob onOrbit={onOrbitDelta} onReset={() => setOrbit([0.5, 0.6])} />
           </View>
 
           {/* Undo/redo — wired to the store history; disabled when the stack is empty. */}
@@ -391,6 +391,31 @@ function JoyArrow({
   );
 }
 
+/** Draggable joystick knob — press-and-drag orbits the camera smoothly (dx→azimuth, dy→pitch);
+ *  a tap (no real drag) resets the view. Incremental deltas keep the orbit smooth. */
+function JoyKnob({ onOrbit, onReset }: { onOrbit: (dPol: number, dAz: number) => void; onReset: () => void }) {
+  const last = useRef({ x: 0, y: 0 });
+  const responder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        last.current = { x: 0, y: 0 };
+      },
+      onPanResponderMove: (_e, g) => {
+        const dAz = (g.dx - last.current.x) * 0.012; // horizontal drag → yaw
+        const dPol = -(g.dy - last.current.y) * 0.012; // vertical drag → pitch
+        last.current = { x: g.dx, y: g.dy };
+        onOrbit(dPol, dAz);
+      },
+      onPanResponderRelease: (_e, g) => {
+        if (Math.abs(g.dx) + Math.abs(g.dy) < 6) onReset(); // negligible move = a tap → reset view
+      },
+    }),
+  ).current;
+  return <View style={styles.knob} {...responder.panHandlers} />;
+}
+
 function Handle({ glyph, onPress }: { glyph: string; onPress: () => void }) {
   return (
     <Pressable style={styles.handle} onPress={onPress}>
@@ -429,7 +454,7 @@ const styles = StyleSheet.create({
   chip: {
     position: "absolute",
     left: 14,
-    top: 14,
+    bottom: 128, // above the HUD, clear of the left rail + top shape-selector (was top:14 → behind rail)
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: C.line,
@@ -592,7 +617,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  knob: { width: 38, height: 38, borderRadius: 999, backgroundColor: "#fff" },
+  knob: { width: 46, height: 46, borderRadius: 999, backgroundColor: "#fff", shadowColor: "#141414", shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
   joyAr: {
     position: "absolute",
     width: 26,

@@ -258,7 +258,20 @@ export const useApp = create<AppState>((set, get) => ({
   tapPart(partId) {
     const m = get().model;
     if (!m) return;
-    set({ selection: toSelection(m, selectByTap(m, partId)) });
+    const eng = selectByTap(m, partId);
+    if (eng) {
+      set({ selection: toSelection(m, eng) });
+      return;
+    }
+    // Carcass/structural panels (side/top/bottom/back) are not component instances, so the engine
+    // returns null — but the user expects tapping ANY panel to select it. Make it a unique single-
+    // part selection so the chip + ⤢ resize (block-level) still work; empty tap clears.
+    const part = get().scene.find((p) => p.id === partId);
+    set({
+      selection: part
+        ? { kind: "single", instanceIds: [], partIds: [partId], isUnique: true, exceptions: 0 }
+        : NO_SELECTION,
+    });
   },
   clearSelection() {
     set({ selection: NO_SELECTION });
