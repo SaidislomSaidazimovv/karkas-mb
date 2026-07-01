@@ -1,0 +1,12 @@
+# Netlify deploy config for the Каркас app (Expo react-native-web → static site).
+# Git-connected deploys: point Netlify at this repo; these settings are picked up automatically.
+[build]
+  base = "ui"                      # the Expo app lives in ui/
+  command = "npx expo export -p web"
+  publish = "dist"                 # relative to base → ui/dist
+
+# Single-page app: serve index.html for any path (no server-side routing).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
