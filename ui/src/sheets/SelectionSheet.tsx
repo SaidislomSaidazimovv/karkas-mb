@@ -51,6 +51,16 @@ function componentBand(model: StructuralModel | null, componentId?: string): Ban
   return undefined;
 }
 
+/** #38: glaze kind of the selected component — a glazed door emits a glass-rebate groove (L8). */
+function componentGlaze(model: StructuralModel | null, componentId?: string): "none" | "single" | "grid" {
+  if (!model || !componentId) return "none";
+  for (const b of model.blocks) {
+    const c = b.components.find((x) => x.id === componentId);
+    if (c) return c.glazedGrid ? "grid" : c.glazed ? "single" : "none";
+  }
+  return "none";
+}
+
 /** #40: current off-plane junction offset of the selected instance (absent = flush). */
 function instanceJunction(model: StructuralModel | null, instanceId?: string): Junction3D | undefined {
   if (!model || !instanceId) return undefined;
@@ -217,6 +227,7 @@ export function SelectionSheet() {
       {mode === "frame" && (
         <FrameBody
           name={name}
+          glaze={componentGlaze(model, cid)}
           partial={partial}
           onPartial={setPartial}
           band={componentBand(model, cid) ?? "butt"}
@@ -363,9 +374,9 @@ function HardwareBody({
 
 /* ===================== FRAME (live: #39 band-transition + #40 junction editor) ===================== */
 function FrameBody({
-  name, partial, onPartial, band, onBand, jx, jy, jz, onJx, onJy, onJz, onReset,
+  name, glaze, partial, onPartial, band, onBand, jx, jy, jz, onJx, onJy, onJz, onReset,
 }: {
-  name: string; partial: boolean; onPartial: (v: boolean) => void;
+  name: string; glaze: "none" | "single" | "grid"; partial: boolean; onPartial: (v: boolean) => void;
   band: BandTransition; onBand: (v: BandTransition) => void;
   jx: number; jy: number; jz: number;
   onJx: (mm: number) => void; onJy: (mm: number) => void; onJz: (mm: number) => void;
@@ -376,8 +387,24 @@ function FrameBody({
       <SheetHeader icon="double" title={name} role="⧉ удвоение · 32 мм фронт">
         <Badge icon="double" label="2 слоя" tone="comp" />
         <Badge label="кромка 32мм" tone="neutral" />
+        {glaze !== "none" ? <Badge icon="check" label="паз под стекло" tone="ok" /> : null}
         {/* S3-U3: static «риск» removed — live ⚠ now renders from store findings via <Warnings/> */}
       </SheetHeader>
+
+      {/* #38 glass-rebate indicator (L8 "the groove that holds the pane is CUT, not implied"). A
+          glazed door/vitrine emits its rebate groove in the cut-list; show it so it's visible, not
+          assumed. */}
+      {glaze !== "none" && (
+        <View style={styles.rebate} pointerEvents="none">
+          <Text style={styles.rebateT}>Паз под стекло · #38</Text>
+          <Text style={styles.rebateS}>
+            {glaze === "grid"
+              ? "Витрина: паз по периметру каждой секции — в крой-листе (эмитирован)."
+              : "Дверь-стекло: паз по периметру фасада — в крой-листе (эмитирован)."}
+          </Text>
+        </View>
+      )}
+
       <Toggle label="Частичное удвоение (фронт 100мм)" value={partial} onChange={onPartial} />
 
       {/* #39 corner band-transition (32↔16 в углу) — emitted, not assumed */}
@@ -412,6 +439,9 @@ const styles = StyleSheet.create({
   over: { borderTopWidth: 0, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: -4 } },
   hint: { fontFamily: FONT, fontSize: 12.5, color: "#6B6862", marginTop: 2, marginBottom: 6 },
   note: { fontFamily: FONT, fontSize: 12, color: C.ink2, textAlign: "center", paddingTop: 12 },
+  rebate: { backgroundColor: "#E7F4EC", borderRadius: 12, padding: 11, marginTop: 12 },
+  rebateT: { fontFamily: FONT, fontSize: 12.5, fontWeight: "800", color: "#1F7A44" },
+  rebateS: { fontFamily: FONT, fontSize: 11.5, color: "#3B6B4E", marginTop: 3, lineHeight: 16 },
   sectionLabel: { fontFamily: FONT, fontSize: 12.5, fontWeight: "700", color: C.ink3, paddingTop: 14, paddingBottom: 8 },
   sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   reset: { fontFamily: FONT, fontSize: 12.5, fontWeight: "700", color: C.selLine, paddingTop: 14, paddingBottom: 8 },
