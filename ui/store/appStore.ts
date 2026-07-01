@@ -351,7 +351,10 @@ export const useApp = create<AppState>((set, get) => ({
   model: INITIAL_MODEL,
   selection: NO_SELECTION,
   mode: "build",
-  view: ["geometry"],
+  // Boot with «Разрез» on: this is a CONSTRUCTION tool — you work INSIDE the cabinet, so the
+  // interior (shelves/dividers/doors) must be visible + tappable from the first frame. Toggle ⬚ off
+  // to see the solid cabinet.
+  view: ["geometry", "xray"],
   past: [],
   future: [],
   hiddenIds: [],
