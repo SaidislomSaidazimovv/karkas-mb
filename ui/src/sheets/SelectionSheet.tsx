@@ -68,6 +68,7 @@ export function SelectionSheet() {
   const mode = useApp((s) => s.mode);
   const resize = useApp((s) => s.resize);
   const detach = useApp((s) => s.detach);
+  const clearSelection = useApp((s) => s.clearSelection);
   const eachDiffers = useApp((s) => s.eachDiffers);
   const setBandTransition = useApp((s) => s.setBandTransition);
   const setJunction = useApp((s) => s.setJunction);
@@ -82,9 +83,13 @@ export function SelectionSheet() {
   const placement: PanelPlacement | undefined = scene.find((p) => p.id === partId);
   const name = componentName(model, selection.componentId) ?? placement?.name ?? "Деталь";
 
-  // real placed size (mm) — the source of truth; steppers seed from this per selection
-  const wReal = placement ? Math.round(placement.w_mm10 / 10) : 0;
-  const dReal = placement ? Math.round(placement.d_mm10 / 10) : 0;
+  // The block that OWNS the selected part — resize is a STRUCTURE-level edit (it sets the block's
+  // width/depth, v3 Piece 1), so the steppers must show the BLOCK's extent, not the panel's own face
+  // size. Seeding from the panel (e.g. a 16 mm back-wall thickness) made "+" on Глубина collapse the
+  // whole cabinet to 16 mm. Fall back to the panel dims only if no block resolves.
+  const ownBlock = model ? (model.blocks.find((b) => partId?.startsWith(`${b.id}__`)) ?? model.blocks[0]) : undefined;
+  const wReal = ownBlock ? Math.round(ownBlock.box.w / 10) : placement ? Math.round(placement.w_mm10 / 10) : 0;
+  const dReal = ownBlock ? Math.round(ownBlock.box.d / 10) : placement ? Math.round(placement.d_mm10 / 10) : 0;
 
   // optimistic edit overrides; reset to real whenever the selected part changes
   const [wOver, setWOver] = useState<number | null>(null);
@@ -170,6 +175,11 @@ export function SelectionSheet() {
   return (
     <View style={sheetBase}>
       <Grab />
+      {/* Dismiss the card — carcass/structural selections have no ✕ in their body header, and there
+          was no way to close the card except the HUD ⊘. This clears the selection (card hides). */}
+      <Pressable style={styles.cardClose} onPress={clearSelection} hitSlop={8}>
+        <Text style={styles.cardCloseG}>✕</Text>
+      </Pressable>
       <Warnings items={warnings} />
       {mode === "build" && (
         <BuildBody
@@ -359,6 +369,8 @@ function FrameBody({
 }
 
 const styles = StyleSheet.create({
+  cardClose: { position: "absolute", top: 10, right: 12, width: 34, height: 34, alignItems: "center", justifyContent: "center", zIndex: 5 },
+  cardCloseG: { fontFamily: FONT, fontSize: 17, color: C.ink2 },
   over: { borderTopWidth: 0, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: -4 } },
   hint: { fontFamily: FONT, fontSize: 12.5, color: "#6B6862", marginTop: 2, marginBottom: 6 },
   note: { fontFamily: FONT, fontSize: 12, color: C.ink2, textAlign: "center", paddingTop: 12 },

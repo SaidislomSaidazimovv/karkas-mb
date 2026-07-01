@@ -168,7 +168,15 @@ function toDivideMode(opts: DivideOpts): DivideMode {
 /** Re-resolve the current selection against a new model (keeps the card live after an edit). */
 function reselect(model: StructuralModel, current: Selection): Selection {
   const pid = current.partIds[0];
-  return pid ? toSelection(model, selectByTap(model, pid)) : NO_SELECTION;
+  if (!pid) return NO_SELECTION;
+  const eng = selectByTap(model, pid);
+  if (eng) return toSelection(model, eng);
+  // Carcass/structural panel (side/top/bottom/back) — the engine has no instance for it, so
+  // selectByTap returns null. Without this the synthetic single-selection would collapse to
+  // NO_SELECTION after the FIRST edit, closing the resize card mid-use. Preserve it so the sheet
+  // stays open across steps (the same partId persists through a structural resize/reflow).
+  if (current.isUnique && current.instanceIds.length === 0) return current;
+  return NO_SELECTION;
 }
 
 // --- store -----------------------------------------------------------------
