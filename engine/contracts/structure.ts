@@ -228,6 +228,21 @@ export interface Component {
 /** How two edge bands meet at a panel corner (#39). "mitre" 45° geometry is V2-deferred. */
 export type BandTransition = "butt" | "mitre" | "overlap";
 
+/**
+ * Junction value editor (#40, CONSTRUCTION_FRAME_v3:191 — "the iPhone-box junction is NOT one
+ * action"): a stepped reveal expressed as THREE explicit values, not one gesture. The advanced/
+ * long-press offset control (Zone 6, L3) sets them. L8 requires these actual values carried, not
+ * implied. All mm10; absent = flush (no offset).
+ *   • oversail_x  — top oversail over the pedestal outer face (X)
+ *   • stepBack_y  — pedestal face step-back (Y)
+ *   • shadowGap_z — shadow-gap depth (Z) — the render-visible reveal; pushes the panel proud
+ */
+export interface Junction3D {
+  readonly oversail_x_mm10: mm10;
+  readonly stepBack_y_mm10: mm10;
+  readonly shadowGap_z_mm10: mm10;
+}
+
 /** Whether an instance follows its Component definition or overrides it. */
 export type InstanceLink = "linked" | "detached";
 
@@ -252,6 +267,12 @@ export interface Instance {
    * S1-A contract (and its fixtures) stay valid — this is a purely additive field.
    */
   readonly partIds?: readonly PartId[] | null;
+  /**
+   * Off-plane junction offset (#40, L3 advanced). Absent = flush. When present, the placement is
+   * pushed proud by the shadow-gap in the 3D view (v3:177 "pushes the door proud"); the oversail /
+   * step-back values are carried for the advanced multi-body cut geometry (L3, not yet rendered).
+   */
+  readonly junction?: Junction3D;
 }
 
 // ---------------------------------------------------------------------------

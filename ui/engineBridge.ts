@@ -46,6 +46,7 @@ export type {
   Scope,
   PanelRole,
   BandTransition,
+  Junction3D,
   BlockId,
   ZoneId,
   SectionId,

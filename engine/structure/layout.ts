@@ -12,6 +12,7 @@ import type {
   Block,
   Component,
   Instance,
+  Junction3D,
   Line,
   Section,
   StructuralModel,
@@ -222,6 +223,15 @@ function glazedGridPlacement(block: Block, inst: Instance): PanelPlacement[] | n
 }
 
 /**
+ * Off-plane junction offset (#40, E5): push a placement proud by the shadow-gap so the reveal is
+ * emitted, not implied (v3:177). The oversail / step-back values are carried in the model for the
+ * advanced multi-body cut geometry (L3), not applied to this single-body placement yet.
+ */
+function applyJunction(p: PanelPlacement, j: Junction3D): PanelPlacement {
+  return j.shadowGap_z_mm10 ? { ...p, z_mm10: p.z_mm10 - j.shadowGap_z_mm10 } : p;
+}
+
+/**
  * Positioned panels for the 3D viewport. Same panels (and ids) as `solveStructure`, but
  * each carries its place in the cabinet so the editor can render the assembled box.
  */
@@ -232,12 +242,9 @@ export function solveLayout(model: StructuralModel): PanelPlacement[] {
     for (const line of block.lines) out.push(dividerPlacement(block, line));
     for (const inst of block.instances) {
       const grid = glazedGridPlacement(block, inst); // E2: multi-panel glazed-grid door
-      if (grid) {
-        out.push(...grid);
-        continue;
-      }
-      const p = shelfPlacement(block, inst) ?? facadePlacement(block, inst);
-      if (p) out.push(p);
+      const placements = grid ?? [shelfPlacement(block, inst) ?? facadePlacement(block, inst)]
+        .filter((p): p is PanelPlacement => p !== null);
+      for (const p of placements) out.push(inst.junction ? applyJunction(p, inst.junction) : p);
     }
   }
   return out;
