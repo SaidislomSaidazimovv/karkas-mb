@@ -44,6 +44,7 @@ export function CanvasView() {
   const undo = useApp((s) => s.undo);
   const redo = useApp((s) => s.redo);
   const loadLCorner = useApp((s) => s.loadLCorner);
+  const loadStraight = useApp((s) => s.loadStraight);
 
   // Live assembled cabinet; demo carcass only if the store scene is somehow empty.
   const scene = useMemo(
@@ -145,8 +146,13 @@ export function CanvasView() {
     setResizeOpen(false);
   };
   const onLoadLCorner = () => {
-    if (isLCorner) return; // already L-corner (no straight-reload action yet — flagged for P)
+    if (isLCorner) return; // already L-corner
     loadLCorner(); // swaps to the L-corner model + clears history; the canvas re-renders it
+    deselectAll();
+  };
+  const onLoadStraight = () => {
+    if (!isLCorner) return; // already a plain box
+    loadStraight(); // back to buildDemoModel + clears history (the L-corner round-trip)
     deselectAll();
   };
 
@@ -168,11 +174,7 @@ export function CanvasView() {
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         {/* Shape selector (blocker #1) — switch the cabinet between a plain box and an L-corner. */}
         <View style={styles.shapeSel} pointerEvents="box-none">
-          <Pressable
-            style={[styles.shapeOpt, !isLCorner && styles.shapeOptOn, isLCorner && styles.shapeOptDim]}
-            disabled={isLCorner}
-            onPress={() => {}}
-          >
+          <Pressable style={[styles.shapeOpt, !isLCorner && styles.shapeOptOn]} onPress={onLoadStraight}>
             <Text style={[styles.shapeOptT, !isLCorner && styles.shapeOptTOn]}>▭ Прямой</Text>
           </Pressable>
           <Pressable style={[styles.shapeOpt, isLCorner && styles.shapeOptOn]} onPress={onLoadLCorner}>
@@ -504,7 +506,6 @@ const styles = StyleSheet.create({
   },
   shapeOpt: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: R.pill, alignItems: "center", justifyContent: "center" },
   shapeOptOn: { backgroundColor: C.ink },
-  shapeOptDim: { opacity: 0.4 },
   shapeOptT: { fontFamily: FONT, fontSize: 12.5, fontWeight: "800", color: C.ink3 },
   shapeOptTOn: { color: "#fff" },
 
