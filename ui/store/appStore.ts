@@ -22,6 +22,8 @@ import {
   mergeSections,
   moveLine as engineMoveLine,
   reattachInstance,
+  resizeBlockDepth,
+  resizeBlockWidth,
   selectByTap,
   solveLayout,
   solvePreview,
@@ -269,8 +271,24 @@ export const useApp = create<AppState>((set, get) => ({
       /* ignore */
     }
   },
-  resize(_partId, _axis, _value_mm10) {
-    /* TODO: no engine resize op yet — a resize maps to a section/line edit (S3-E1 follow-up) */
+  resize(partId, axis, value_mm10) {
+    // E8: a resize is a STRUCTURE-level edit — it sets the owning block's depth (z) or width (x)
+    // and the solver reflows every panel (blocker #3, v3 Piece 1). Solved part ids are prefixed
+    // with their block id (`<blockId>__…`), so the tapped part resolves to its block.
+    const m = get().model;
+    if (!m) return;
+    const block = m.blocks.find((b) => partId.startsWith(`${b.id}__`)) ?? m.blocks[0];
+    if (!block) return;
+    try {
+      const next =
+        axis === "z"
+          ? resizeBlockDepth(m, block.id, value_mm10)
+          : resizeBlockWidth(m, block.id, value_mm10);
+      if (next === m) return; // unchanged extent → no-op
+      applyEdit(get, set, next, true);
+    } catch {
+      /* invalid extent / unknown block — ignore; the UI guards the stepper range */
+    }
   },
   addPart(sectionId, kind) {
     const m = get().model;

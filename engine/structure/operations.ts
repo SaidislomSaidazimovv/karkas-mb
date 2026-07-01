@@ -28,6 +28,7 @@
 import type {
   Axis,
   Block,
+  BlockId,
   Box3D,
   Component,
   ComponentId,
@@ -715,4 +716,97 @@ function mapInstance(
   });
   if (!seen) throw new Error("INSTANCE_NOT_FOUND");
   return blocks.every((b, i) => b === model.blocks[i]) ? model : { ...model, blocks };
+}
+
+// ===========================================================================
+// 4 · resizeBlock{Depth,Width} — structure-level dimension edit (blocker #3)
+// ===========================================================================
+//
+// CONSTRUCTION_FRAME_v3 Piece 1 step 1: depth is edited "at block/leg level, not panel". These
+// ops scale a whole block along one block-local axis and let solveStructure/solveLayout reflow the
+// panels — the fix for the stubbed store `resize`. Depth (z) is the grounded headline case: a
+// carcass section spans the full block depth, so scaling is exact. Width (x) additionally scales
+// the x-axis dividers proportionally (relative divider positions preserved).
+
+/**
+ * Scale one block-local axis of a whole block by `factor`: the block box, every section box
+ * (recursively), every instance anchor, and every divider `Line` that runs on that axis. mm10
+ * stays integer (round). For an L-block, a depth (z) scale also scales both legs' footprint depth
+ * (so `lCornerParts`, which reads the footprint, reflows). Pure; the input block is never mutated.
+ */
+function scaleBlockAxis(block: Block, axis: Axis, factor: number): Block {
+  const scale = (v: mm10): mm10 => Math.round(v * factor);
+  const scaleBox = (b: Box3D): Box3D =>
+    withAxis(b, axis, scale(originOf(b, axis)), scale(extentOf(b, axis)));
+  const scaleSection = (s: Section): Section => ({
+    ...s,
+    box: scaleBox(s.box),
+    children: s.children.map(scaleSection),
+  });
+
+  const zones = block.zones.map((z) => ({ ...z, root: scaleSection(z.root) }));
+  const instances = block.instances.map((i) => ({
+    ...i,
+    anchor:
+      axis === "x"
+        ? { ...i.anchor, x: scale(i.anchor.x) }
+        : axis === "y"
+          ? { ...i.anchor, y: scale(i.anchor.y) }
+          : { ...i.anchor, z: scale(i.anchor.z) },
+  }));
+  const lines = block.lines.map((l) =>
+    l.axis === axis ? { ...l, position_mm10: scale(l.position_mm10) } : l,
+  );
+
+  const base: Block = { ...block, box: scaleBox(block.box), zones, instances, lines };
+  if (block.footprint && axis === "z") {
+    return {
+      ...base,
+      footprint: {
+        legA: { ...block.footprint.legA, depth_mm10: scale(block.footprint.legA.depth_mm10) },
+        legB: { ...block.footprint.legB, depth_mm10: scale(block.footprint.legB.depth_mm10) },
+      },
+    };
+  }
+  return base;
+}
+
+/** Set `blockId`'s extent along `axis` to `newExtent_mm10`, scaling its whole subtree to match.
+ *  No-op (same model ref) when the extent is unchanged. Throws on unknown block or invalid extent. */
+function resizeBlockAxis(
+  model: StructuralModel,
+  blockId: BlockId,
+  axis: Axis,
+  newExtent_mm10: mm10,
+): StructuralModel {
+  if (!Number.isInteger(newExtent_mm10) || newExtent_mm10 <= 0) {
+    throw new Error("RESIZE_INVALID_EXTENT");
+  }
+  const block = model.blocks.find((b) => b.id === blockId);
+  if (!block) throw new Error("RESIZE_BLOCK_NOT_FOUND");
+  const old = extentOf(block.box, axis);
+  if (old <= 0) throw new Error("RESIZE_DEGENERATE_BLOCK");
+  if (old === newExtent_mm10) return model; // semantic no-op
+
+  const scaled = scaleBlockAxis(block, axis, newExtent_mm10 / old);
+  return { ...model, blocks: model.blocks.map((b) => (b.id === blockId ? scaled : b)) };
+}
+
+/** Structure-level DEPTH edit (blocker #3, v3 Piece 1): set a block's depth; panels reflow. */
+export function resizeBlockDepth(
+  model: StructuralModel,
+  blockId: BlockId,
+  newDepth_mm10: mm10,
+): StructuralModel {
+  return resizeBlockAxis(model, blockId, "z", newDepth_mm10);
+}
+
+/** Structure-level WIDTH edit (the ⤢ handle's second axis, L6): set a block's width; panels and
+ *  x-axis dividers reflow proportionally. */
+export function resizeBlockWidth(
+  model: StructuralModel,
+  blockId: BlockId,
+  newWidth_mm10: mm10,
+): StructuralModel {
+  return resizeBlockAxis(model, blockId, "x", newWidth_mm10);
 }

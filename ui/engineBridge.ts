@@ -22,6 +22,8 @@ export {
   detachInstance,
   reattachInstance,
   addInstance,
+  resizeBlockDepth,
+  resizeBlockWidth,
 } from "./_engine/structure/operations";
 export { countExceptions, leafSections } from "./_engine/contracts/structure";
 
