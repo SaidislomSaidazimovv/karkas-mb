@@ -17,7 +17,7 @@ import { CanvasScene } from "./CanvasScene";
 import { DivideSheet } from "./DivideSheet";
 import { ResizeSheet } from "./ResizeSheet";
 import { MoveSheet } from "./MoveSheet";
-import { DEMO_PREVIEW, layoutToScene, previewToScene, sceneDimsMm, type OrbitLike } from "./cabinet";
+import { DEMO_PREVIEW, layoutToScene, previewToScene, sceneDimsMm, sectionPicks, sectionAtPoint, type OrbitLike } from "./cabinet";
 import type { DivideOpts } from "../../store/appStore";
 import type { Scope, StructuralModel } from "../../engineBridge";
 
@@ -38,6 +38,7 @@ export function CanvasView() {
   const future = useApp((s) => s.future);
   const hiddenIds = useApp((s) => s.hiddenIds);
   const tapPart = useApp((s) => s.tapPart);
+  const selectSection = useApp((s) => s.selectSection);
   const clearSelection = useApp((s) => s.clearSelection);
   const resize = useApp((s) => s.resize);
   const divide = useApp((s) => s.divide);
@@ -54,6 +55,8 @@ export function CanvasView() {
     () => (sceneData.length > 0 ? layoutToScene(sceneData) : previewToScene(DEMO_PREVIEW)),
     [sceneData],
   );
+  // Pickable interior leaf-section volumes (tap one → select that section for divide/add).
+  const secPicks = useMemo(() => sectionPicks(model, sceneData), [model, sceneData]);
 
   // OrbitControls (in CanvasScene) owns the camera — drag to orbit, wheel/pinch to zoom. The joystick
   // nudges it through this ref.
@@ -112,7 +115,7 @@ export function CanvasView() {
   const resetCam = () => controlsRef.current?.reset();
 
   // Route taps: merge-mode collects sections; a divider becomes the move target; else a selection.
-  const handleTap = (id: string) => {
+  const handleTap = (id: string, point?: [number, number, number]) => {
     if (mergeMode) {
       const sec = sectionOfPart(model, id);
       if (!sec) return; // only instance panels resolve to a leaf section
@@ -126,11 +129,20 @@ export function CanvasView() {
     if (id.includes("__div_")) {
       setMoveDivId(id);
       tapPart(id); // engine returns null for dividers → clears the instance-selection (exclusive)
-    } else {
-      setMoveDivId(null);
-      closeOverlay();
-      tapPart(id);
+      return;
     }
+    setMoveDivId(null);
+    closeOverlay();
+    // A shelf/door (instance) → select the component (resize/detach). A carcass wall → resolve the
+    // interior SECTION behind the tap so «Разделить»/«Добавить» act exactly there; if the point
+    // resolves to no section, fall back to the wall part (block-level resize still works).
+    if (id.includes("__inst_")) {
+      tapPart(id);
+      return;
+    }
+    const sec = point ? sectionAtPoint(model, sceneData, scene.center, point) : undefined;
+    if (sec) selectSection(sec);
+    else tapPart(id);
   };
   const applyMove = (delta_mm10: number, scope: Scope) => {
     const lineId = moveDivId?.split("__div_")[1];
@@ -182,6 +194,8 @@ export function CanvasView() {
         lenses={view}
         hiddenIds={hiddenIds}
         controlsRef={controlsRef}
+        sectionPicks={mode === "build" ? secPicks : []}
+        selectedSectionId={selection.partIds.length === 0 ? selection.sectionId : undefined}
       />
 
       {/* Overlay layer — taps pass through to the 3D except on the controls below. */}

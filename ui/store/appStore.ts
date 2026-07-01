@@ -166,8 +166,19 @@ function toDivideMode(opts: DivideOpts): DivideMode {
   }
 }
 
+/** Is `id` still a LEAF section in the model? (A divide turns a leaf into a parent.) */
+function sectionIsLeaf(model: StructuralModel, id: SectionId): boolean {
+  for (const b of model.blocks) for (const z of b.zones) if (leafSections(z.root).some((s) => s.id === id)) return true;
+  return false;
+}
+
 /** Re-resolve the current selection against a new model (keeps the card live after an edit). */
 function reselect(model: StructuralModel, current: Selection): Selection {
+  // Section selection (no part) — keep it across an add (still a leaf); drop it after a divide (it
+  // became a parent), so the card doesn't dangle on a section that no longer exists.
+  if (current.partIds.length === 0 && current.sectionId) {
+    return sectionIsLeaf(model, current.sectionId) ? current : NO_SELECTION;
+  }
   const pid = current.partIds[0];
   if (!pid) return NO_SELECTION;
   const eng = selectByTap(model, pid);
@@ -220,6 +231,8 @@ export interface AppState {
   layersOpen: boolean; // Zone 5 layers panel visible?
 
   tapPart(partId: PartId): void;
+  /** Select an interior leaf SECTION (tapped in the 3D) — sets selection.sectionId for divide/add. */
+  selectSection(sectionId: SectionId): void;
   clearSelection(): void;
   setMode(mode: Mode): void;
   toggleView(lens: ViewLens): void;
@@ -302,6 +315,12 @@ export const useApp = create<AppState>((set, get) => ({
         ? { kind: "single", instanceIds: [], partIds: [partId], isUnique: true, exceptions: 0 }
         : NO_SELECTION,
     });
+  },
+  selectSection(sectionId) {
+    // A section (not a part) was tapped in the 3D — carry it as the selection's sectionId so the
+    // Build verbs «Разделить»/«Добавить» act on exactly this interior section. No partIds → the
+    // selection card recognises it as a section (compact «Секция» body).
+    set({ selection: { kind: "single", instanceIds: [], partIds: [], sectionId, isUnique: true, exceptions: 0 } });
   },
   clearSelection() {
     set({ selection: NO_SELECTION });

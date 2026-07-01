@@ -57,7 +57,10 @@ function makeWoodTexture(): CanvasTexture {
   return tex;
 }
 
-export function CanvasScene({ scene, selectedIds, onTapPart, lenses, hiddenIds, controlsRef }: CanvasSceneProps) {
+export function CanvasScene({
+  scene, selectedIds, onTapPart, lenses, hiddenIds, controlsRef,
+  sectionPicks = [], selectedSectionId,
+}: CanvasSceneProps) {
   const sel = new Set(selectedIds);
   const hidden = new Set(hiddenIds); // boards toggled off in Zone 5 — skipped below (view-only)
   // Distance that frames the whole cabinet with margin (fov 35°). OrbitControls zooms within bounds.
@@ -123,6 +126,20 @@ export function CanvasScene({ scene, selectedIds, onTapPart, lenses, hiddenIds, 
         <shadowMaterial transparent opacity={0.2} />
       </mesh>
 
+      {/* Selected interior section — a translucent blue block drawn OVER the carcass (depthTest off)
+          so you can see which section you picked even though it's inside an opaque box. Picking is
+          done from the tap's hit-point (walls occlude, so an invisible pick-mesh can't be raycast). */}
+      <group position={[-scene.center[0], -scene.center[1], -scene.center[2]]}>
+        {sectionPicks
+          .filter((s) => s.id === selectedSectionId)
+          .map((s) => (
+            <mesh key={s.id} position={s.pos} renderOrder={999}>
+              <boxGeometry args={s.size} />
+              <meshBasicMaterial transparent opacity={0.28} color={C.sel} depthTest={false} depthWrite={false} />
+            </mesh>
+          ))}
+      </group>
+
       {/* Cabinet — shifted so its centre is the origin the camera orbits. */}
       <group position={[-scene.center[0], -scene.center[1], -scene.center[2]]}>
         {scene.boards.map((b, i) => {
@@ -136,8 +153,10 @@ export function CanvasScene({ scene, selectedIds, onTapPart, lenses, hiddenIds, 
                 onClick={(e) => {
                   e.stopPropagation();
                   // Ignore a click that was actually a drag (OrbitControls just orbited the camera);
-                  // only a real tap (pointer barely moved) selects the panel.
-                  if (e.delta < 5) onTapPart(b.id);
+                  // only a real tap (pointer barely moved) selects. Pass the 3D hit-point so the
+                  // caller can resolve which interior SECTION the tap falls in (walls occlude the
+                  // section volumes, so we infer the section from where the ray landed).
+                  if (e.delta < 5) onTapPart(b.id, [e.point.x, e.point.y, e.point.z]);
                 }}
               >
                 <boxGeometry args={b.size} />

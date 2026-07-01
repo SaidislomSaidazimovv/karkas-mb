@@ -73,6 +73,7 @@ export function SelectionSheet() {
   const setBandTransition = useApp((s) => s.setBandTransition);
   const setJunction = useApp((s) => s.setJunction);
   const overlay = usePanelUi((s) => s.overlay);
+  const openPanel = usePanelUi((s) => s.open);
   // non-blocking ⚠ findings (E7/E6/E9) — shown for the selected instance(s)
   const stability = useApp((s) => s.stability);
   const hingeFit = useApp((s) => s.hingeFit);
@@ -128,6 +129,9 @@ export function SelectionSheet() {
   if (selection.kind === "none") return null;
 
   const isGroup = selection.kind === "group" && !selection.isUnique;
+  // A section (interior volume) was tapped in the 3D — no part, just a sectionId. Its card offers
+  // «Разделить»/«Добавить» (which act on this section), not part-resize steppers.
+  const isSection = selection.partIds.length === 0 && !!selection.sectionId;
   const count = selection.partIds.length;
   const cid = selection.componentId;
   const instId = selection.instanceIds[0];
@@ -181,7 +185,10 @@ export function SelectionSheet() {
         <Text style={styles.cardCloseG}>✕</Text>
       </Pressable>
       <Warnings items={warnings} />
-      {mode === "build" && (
+      {mode === "build" && isSection && (
+        <SectionBody onDivide={() => openPanel("divide")} onAdd={() => openPanel("add")} />
+      )}
+      {mode === "build" && !isSection && (
         <BuildBody
           name={name}
           isGroup={isGroup}
@@ -215,6 +222,20 @@ export function SelectionSheet() {
         />
       )}
     </View>
+  );
+}
+
+/* ===================== SECTION (interior volume tapped in the 3D) ===================== */
+function SectionBody({ onDivide, onAdd }: { onDivide: () => void; onAdd: () => void }) {
+  return (
+    <>
+      <SheetHeader icon="divide" title="Секция" role="внутренняя область">
+        <Badge icon="check" label="выбрана в 3D" tone="ok" />
+      </SheetHeader>
+      <MenuRow icon="divide" title="Разделить" sub="вертикально / горизонтально · N частей" trailing="chev" onPress={onDivide} />
+      <MenuRow icon="add" title="Добавить деталь" sub="полка · перегородка · дверь · витрина" trailing="chev" onPress={onAdd} />
+      <Text style={styles.note}>Действия применяются к этой секции.</Text>
+    </>
   );
 }
 

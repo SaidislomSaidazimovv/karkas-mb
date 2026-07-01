@@ -6,7 +6,8 @@
 // the SAME centring core (boxesToScene), so selection highlight + camera framing behave
 // identically. We never reach into the engine beyond the types arriving via engineBridge.
 
-import type { PanelPlacement, PreviewResult } from "../../engineBridge";
+import { leafSections } from "../../engineBridge";
+import type { PanelPlacement, PreviewResult, StructuralModel } from "../../engineBridge";
 
 /** One preview part (derived from the seam type so we don't widen the engineBridge surface). */
 type PreviewPart = PreviewResult["parts"][number];
@@ -36,7 +37,8 @@ export type Orbit = [number, number];
 export interface CanvasSceneProps {
   scene: Scene;
   selectedIds: readonly string[];
-  onTapPart: (id: string) => void;
+  /** Tap a panel. `point` is the 3D hit-point (world coords) — used to resolve the interior section. */
+  onTapPart: (id: string, point?: [number, number, number]) => void;
   orbit?: Orbit; // legacy (OrbitControls now owns the camera); kept optional for the native fallback
   /** Active view lenses (rail toggles): "glass" → translucent, "lines" → edge overlay. */
   lenses: readonly string[];
@@ -46,6 +48,10 @@ export interface CanvasSceneProps {
   onOrbitDelta?: (dPol: number, dAz: number) => void;
   /** Ref receiving the OrbitControls instance so the on-screen joystick can drive it (web only). */
   controlsRef?: { current: OrbitLike | null };
+  /** Leaf-section volumes (metres) — only the selected one is drawn, as a highlight over the box. */
+  sectionPicks?: readonly SectionPick[];
+  /** The currently selected section id (drawn as a translucent highlight). */
+  selectedSectionId?: string;
 }
 
 /** The bits of drei's OrbitControls the joystick uses (loosely typed to avoid a hard drei dep here). */
@@ -110,6 +116,88 @@ function boxesToScene(boxes: RawBox[]): Scene {
   }));
   const w = M(maxX - minX), h = M(maxY - minY), d = M(maxZ - minZ);
   return { boards, center: [0, h / 2, 0], radius: Math.max(w, h, d) };
+}
+
+/** A pickable interior leaf-section volume, in the SAME world coords as the scene boards. */
+export interface SectionPick {
+  id: string; // sectionId
+  pos: [number, number, number]; // centre (metres)
+  size: [number, number, number]; // full size (metres)
+}
+
+/** The centring offset boxesToScene applies, derived from the panel bounds. */
+function sceneOffset(boxes: readonly RawBox[]): { cx: number; cz: number; minY: number } {
+  let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+  for (const b of boxes) {
+    minX = Math.min(minX, b.x); maxX = Math.max(maxX, b.x + b.w);
+    minY = Math.min(minY, b.y);
+    minZ = Math.min(minZ, b.z); maxZ = Math.max(maxZ, b.z + b.d);
+  }
+  return { cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, minY };
+}
+
+/**
+ * Pickable volumes for every LEAF section, mapped into the panel scene's world coords so a tap in
+ * the 3D can select the exact interior section (→ divide/add target it). Each box is inset to ~70%
+ * of the section so it floats inside — the surrounding carcass walls stay tappable for a part
+ * selection, and the front face sits behind the (open) front so it's reachable through the opening.
+ */
+export function sectionPicks(
+  model: StructuralModel | null,
+  panels: readonly PanelPlacement[],
+): SectionPick[] {
+  if (!model || panels.length === 0) return [];
+  const { cx, cz, minY } = sceneOffset(
+    panels.map((p) => ({ id: p.id, x: p.x_mm10, y: p.y_mm10, z: p.z_mm10, w: p.w_mm10, h: p.h_mm10, d: p.d_mm10 })),
+  );
+  const INSET = 0.15; // trim 15% off each side → central 70% is the section, edges are walls
+  const picks: SectionPick[] = [];
+  for (const b of model.blocks) {
+    for (const z of b.zones) {
+      for (const s of leafSections(z.root)) {
+        const ax = b.box.x + s.box.x, ay = b.box.y + s.box.y, az = b.box.z + s.box.z;
+        const w = s.box.w * (1 - 2 * INSET), h = s.box.h * (1 - 2 * INSET), d = s.box.d * (1 - 2 * INSET);
+        const x = ax + s.box.w * INSET, y = ay + s.box.h * INSET, zz = az + s.box.d * INSET;
+        picks.push({
+          id: s.id,
+          pos: [M(x + w / 2 - cx), M(y + h / 2 - minY), M(zz + d / 2 - cz)],
+          size: [M(w), M(h), M(d)],
+        });
+      }
+    }
+  }
+  return picks;
+}
+
+/**
+ * Which LEAF section does a 3D tap fall in? `world` is the ray hit-point (from onTapPart), `center`
+ * is scene.center (the group offset). We invert the board transform to model mm10 and test x/y
+ * containment (sections span the full depth, and the hit lands on a bounding wall, so z is ignored).
+ * Lets a tap ANYWHERE on the cabinet resolve the interior section behind that spot — no need to
+ * reach an occluded volume.
+ */
+export function sectionAtPoint(
+  model: StructuralModel | null,
+  panels: readonly PanelPlacement[],
+  center: readonly [number, number, number],
+  world: readonly [number, number, number],
+): string | undefined {
+  if (!model || panels.length === 0) return undefined;
+  const { cx, minY } = sceneOffset(
+    panels.map((p) => ({ id: p.id, x: p.x_mm10, y: p.y_mm10, z: p.z_mm10, w: p.w_mm10, h: p.h_mm10, d: p.d_mm10 })),
+  );
+  const mx = (world[0] + center[0]) * 10_000 + cx;
+  const my = (world[1] + center[1]) * 10_000 + minY;
+  const EPS = 60; // 6mm — a tap on a bounding wall face can sit a hair outside the section box
+  for (const b of model.blocks) {
+    for (const z of b.zones) {
+      for (const s of leafSections(z.root)) {
+        const ax = b.box.x + s.box.x, ay = b.box.y + s.box.y;
+        if (mx >= ax - EPS && mx <= ax + s.box.w + EPS && my >= ay - EPS && my <= ay + s.box.h + EPS) return s.id;
+      }
+    }
+  }
+  return undefined;
 }
 
 /** Live path: the assembled cabinet from the store (solveLayout → positioned panels). */
