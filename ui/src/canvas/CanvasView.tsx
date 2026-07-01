@@ -18,7 +18,7 @@ import { ResizeSheet } from "./ResizeSheet";
 import { MoveSheet } from "./MoveSheet";
 import { DEMO_PREVIEW, layoutToScene, previewToScene, sceneDimsMm, type Orbit } from "./cabinet";
 import type { DivideOpts } from "../../store/appStore";
-import type { Scope } from "../../engineBridge";
+import type { Scope, StructuralModel } from "../../engineBridge";
 
 const AZ_STEP = 0.05; // rad per tick — yaw
 const POL_STEP = 0.04; // rad per tick — pitch
@@ -39,6 +39,7 @@ export function CanvasView() {
   const resize = useApp((s) => s.resize);
   const divide = useApp((s) => s.divide);
   const moveLine = useApp((s) => s.moveLine);
+  const merge = useApp((s) => s.merge);
   const toggleView = useApp((s) => s.toggleView);
   const undo = useApp((s) => s.undo);
   const redo = useApp((s) => s.redo);
@@ -57,6 +58,10 @@ export function CanvasView() {
   const [moveDivId, setMoveDivId] = useState<string | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
   const dividerSel = moveDivId !== null;
+  // Merge (blocker #2) is a UI-local multi-select: collect the leaf sections of tapped panels,
+  // then `merge` the adjacent ones. Store selection isn't used (mutually exclusive with it).
+  const [mergeMode, setMergeMode] = useState(false);
+  const [mergeSel, setMergeSel] = useState<{ sec: string; part: string }[]>([]);
 
   const hasSel = selection.kind !== "none";
   const selPart = selection.partIds[0];
@@ -87,8 +92,18 @@ export function CanvasView() {
   const onOrbitDelta = (dPol: number, dAz: number) =>
     setOrbit(([p, a]) => [clamp(p + dPol, POL_MIN, POL_MAX), a + dAz]);
 
-  // Route taps: a divider becomes the UI-local move target; anything else is a normal selection.
+  // Route taps: merge-mode collects sections; a divider becomes the move target; else a selection.
   const handleTap = (id: string) => {
+    if (mergeMode) {
+      const sec = sectionOfPart(model, id);
+      if (!sec) return; // only instance panels resolve to a leaf section
+      setMergeSel((cur) =>
+        cur.some((x) => x.sec === sec)
+          ? cur.filter((x) => x.sec !== sec)
+          : [...cur, { sec, part: id }],
+      );
+      return;
+    }
     if (id.includes("__div_")) {
       setMoveDivId(id);
       tapPart(id); // engine returns null for dividers → clears the instance-selection (exclusive)
@@ -102,17 +117,36 @@ export function CanvasView() {
     const lineId = moveDivId?.split("__div_")[1];
     if (lineId) moveLine(lineId, delta_mm10, scope); // relative nudge; sections reflow, undo-able
   };
+  const toggleMergeMode = () => {
+    const entering = !mergeMode;
+    setMergeMode(entering);
+    setMergeSel([]);
+    if (entering) {
+      clearSelection();
+      setMoveDivId(null);
+      setMoveOpen(false);
+    }
+  };
+  const applyMerge = () => {
+    merge(mergeSel.map((x) => x.sec)); // engine no-op if <2 or non-adjacent; undo-able
+    setMergeSel([]);
+    setMergeMode(false);
+  };
   const deselectAll = () => {
     clearSelection();
     setMoveDivId(null);
     setMoveOpen(false);
+    setMergeMode(false);
+    setMergeSel([]);
   };
 
   return (
     <View style={styles.canvas}>
       <CanvasScene
         scene={scene}
-        selectedIds={moveDivId ? [moveDivId] : selection.partIds}
+        selectedIds={
+          mergeMode ? mergeSel.map((x) => x.part) : moveDivId ? [moveDivId] : selection.partIds
+        }
         onTapPart={handleTap}
         orbit={orbit}
         lenses={view}
@@ -122,8 +156,18 @@ export function CanvasView() {
 
       {/* Overlay layer — taps pass through to the 3D except on the controls below. */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        {/* Merge mode toggle (Build) — collect adjacent sections, then «Объединить». */}
+        {mode === "build" && (
+          <Pressable
+            style={[styles.mergePill, mergeMode && styles.mergePillOn]}
+            onPress={toggleMergeMode}
+          >
+            <Text style={[styles.mergePillT, mergeMode && styles.mergePillTOn]}>⧉ Объединить</Text>
+          </Pressable>
+        )}
+
         {/* Info chip */}
-        {hasSel && (
+        {!mergeMode && hasSel && (
           <View style={styles.chip}>
             <Text style={styles.chipT}>
               {selBoard?.name ?? (selection.isUnique ? "Деталь" : "Тип")}
@@ -180,6 +224,18 @@ export function CanvasView() {
               </Pressable>
             )}
           </>
+        )}
+
+        {/* Merge confirm / hint — while collecting sections. */}
+        {mergeMode && mergeSel.length >= 2 && (
+          <Pressable style={styles.mergeBtn} onPress={applyMerge}>
+            <Text style={styles.mergeBtnT}>Объединить ({mergeSel.length})</Text>
+          </Pressable>
+        )}
+        {mergeMode && mergeSel.length < 2 && (
+          <View style={styles.mergeHint} pointerEvents="none">
+            <Text style={styles.mergeHintT}>Выберите смежные секции · {mergeSel.length}</Text>
+          </View>
         )}
 
         {/* HUD */}
@@ -247,6 +303,19 @@ export function CanvasView() {
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+/** The leaf section an instance panel (`<blockId>__inst_<id>`) sits in, for merge collection. */
+function sectionOfPart(model: StructuralModel | null, partId: string): string | undefined {
+  if (!model) return undefined;
+  for (const b of model.blocks) {
+    const pref = `${b.id}__inst_`;
+    if (partId.startsWith(pref)) {
+      const instId = partId.slice(pref.length);
+      return b.instances.find((i) => i.id === instId)?.sectionId;
+    }
+  }
+  return undefined;
 }
 
 function plural(n: number): string {
@@ -392,6 +461,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   divBtnT: { fontFamily: FONT, color: "#fff", fontWeight: "800", fontSize: 13.5 },
+
+  mergePill: {
+    position: "absolute",
+    top: 14,
+    alignSelf: "center",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: R.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    shadowColor: "#141414",
+    shadowOpacity: 0.09,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  mergePillOn: { backgroundColor: C.ink, borderColor: C.ink },
+  mergePillT: { fontFamily: FONT, fontSize: 13, fontWeight: "800", color: C.ink3 },
+  mergePillTOn: { color: "#fff" },
+  mergeBtn: {
+    position: "absolute",
+    alignSelf: "center",
+    bottom: 120,
+    backgroundColor: C.selLine,
+    borderRadius: R.pill,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  mergeBtnT: { fontFamily: FONT, color: "#fff", fontWeight: "800", fontSize: 14 },
+  mergeHint: {
+    position: "absolute",
+    alignSelf: "center",
+    bottom: 122,
+    backgroundColor: "rgba(28,28,29,0.85)",
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  mergeHintT: { fontFamily: FONT, color: "#fff", fontSize: 12 },
 
   hud: { position: "absolute", left: 0, right: 0, bottom: 14, height: 104 },
   hudCluster: { position: "absolute", left: 14, bottom: 0, flexDirection: "row", gap: 9 },
