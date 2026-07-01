@@ -43,6 +43,7 @@ export function CanvasView() {
   const toggleView = useApp((s) => s.toggleView);
   const undo = useApp((s) => s.undo);
   const redo = useApp((s) => s.redo);
+  const loadLCorner = useApp((s) => s.loadLCorner);
 
   // Live assembled cabinet; demo carcass only if the store scene is somehow empty.
   const scene = useMemo(
@@ -71,6 +72,8 @@ export function CanvasView() {
   const showDims = view.includes("dimension");
   const dims = useMemo(() => sceneDimsMm(scene), [scene]);
   const mm = (m: number) => Math.round(m * 1000);
+  // Shape (blocker #1): an L-corner model carries a footprint on some block; a plain box doesn't.
+  const isLCorner = !!model && model.blocks.some((b) => !!b.footprint);
 
   // The block that owns the selected part — its box drives the resize steppers (E8 is
   // block-level: partId `<blockId>__…` → block). box is mm10; the sheet works in mm.
@@ -138,6 +141,13 @@ export function CanvasView() {
     setMoveOpen(false);
     setMergeMode(false);
     setMergeSel([]);
+    setDivideOpen(false);
+    setResizeOpen(false);
+  };
+  const onLoadLCorner = () => {
+    if (isLCorner) return; // already L-corner (no straight-reload action yet — flagged for P)
+    loadLCorner(); // swaps to the L-corner model + clears history; the canvas re-renders it
+    deselectAll();
   };
 
   return (
@@ -156,6 +166,20 @@ export function CanvasView() {
 
       {/* Overlay layer — taps pass through to the 3D except on the controls below. */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        {/* Shape selector (blocker #1) — switch the cabinet between a plain box and an L-corner. */}
+        <View style={styles.shapeSel} pointerEvents="box-none">
+          <Pressable
+            style={[styles.shapeOpt, !isLCorner && styles.shapeOptOn, isLCorner && styles.shapeOptDim]}
+            disabled={isLCorner}
+            onPress={() => {}}
+          >
+            <Text style={[styles.shapeOptT, !isLCorner && styles.shapeOptTOn]}>▭ Прямой</Text>
+          </Pressable>
+          <Pressable style={[styles.shapeOpt, isLCorner && styles.shapeOptOn]} onPress={onLoadLCorner}>
+            <Text style={[styles.shapeOptT, isLCorner && styles.shapeOptTOn]}>⌐ L-угол</Text>
+          </Pressable>
+        </View>
+
         {/* Merge mode toggle (Build) — collect adjacent sections, then «Объединить». */}
         {mode === "build" && (
           <Pressable
@@ -462,9 +486,31 @@ const styles = StyleSheet.create({
   },
   divBtnT: { fontFamily: FONT, color: "#fff", fontWeight: "800", fontSize: 13.5 },
 
-  mergePill: {
+  shapeSel: {
     position: "absolute",
     top: 14,
+    alignSelf: "center",
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: R.pill,
+    padding: 4,
+    gap: 4,
+    shadowColor: "#141414",
+    shadowOpacity: 0.09,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  shapeOpt: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: R.pill, alignItems: "center", justifyContent: "center" },
+  shapeOptOn: { backgroundColor: C.ink },
+  shapeOptDim: { opacity: 0.4 },
+  shapeOptT: { fontFamily: FONT, fontSize: 12.5, fontWeight: "800", color: C.ink3 },
+  shapeOptTOn: { color: "#fff" },
+
+  mergePill: {
+    position: "absolute",
+    top: 58,
     alignSelf: "center",
     backgroundColor: "#fff",
     borderWidth: 1,
