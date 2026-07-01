@@ -16,3 +16,8 @@ expo-env.d.ts
 
 # Lokal ilova-sharhi (ichki holat) — hech qachon GitHub'ga (karkas-mb) chiqmasin
 MEBELCHI_APP_OVERVIEW_LOCAL.md
+
+# Ichki hujjatlar — GitHub'da (karkas-mb) ko'rinmasin
+ENGINE_README.md
+FACTORY_CHECKLIST.md
+PERF_LEDGER.md
