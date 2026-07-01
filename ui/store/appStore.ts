@@ -20,6 +20,7 @@ import {
   checkHingeFit,
   checkMotionClearance,
   checkStability,
+  dissolveGroup,
   divideSection,
   exportModelToSWJ008,
   mergeSections,
@@ -34,6 +35,7 @@ import {
 } from "../engineBridge";
 import type {
   Block,
+  ComponentId,
   DivideMode,
   EngineSelection,
   HingeFitFinding,
@@ -196,6 +198,9 @@ export interface AppState {
   detach(instanceId: InstanceId): void;
   reattach(instanceId: InstanceId): void;
   merge(sectionIds: readonly SectionId[]): void;
+  /** "Each differs" (E10): dissolve the selected multi-member group into independent group-of-1s,
+   *  so an edit to one member no longer travels to its siblings (L0, v3:67). No-op if not a group. */
+  eachDiffers(componentId: ComponentId): void;
   undo(): void;
   redo(): void;
   /** E1: drill the live model, run the safety gate, and emit a byte-exact SWJ008 cut file.
@@ -369,6 +374,18 @@ export const useApp = create<AppState>((set, get) => ({
       selection: NO_SELECTION,
       ...derive(nx),
     });
+  },
+
+  eachDiffers(componentId) {
+    const m = get().model;
+    if (!m) return;
+    try {
+      const next = dissolveGroup(m, componentId);
+      if (next === m) return; // not a real group (< 2 members) → no-op
+      applyEdit(get, set, next, true);
+    } catch {
+      /* unknown component — ignore; UI guards */
+    }
   },
 
   exportCutFile() {

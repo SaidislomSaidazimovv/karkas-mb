@@ -626,6 +626,40 @@ export function reattachInstance(model: StructuralModel, instanceId: InstanceId)
   });
 }
 
+/**
+ * "Each differs" — dissolve a fresh multi-member group into independent group-of-1s (L0, v3:67
+ * "first edit of a fresh multi-member group offers 'keep linked / each differs'"; ledger #14 /
+ * surface #36). Every instance of `componentId` gets its OWN private Component clone, so an edit to
+ * one no longer travels to its siblings; the shared type is removed. A detached instance's private
+ * snapshot is preserved into its clone. No-op (same model) for a component with < 2 instances (a
+ * unique part is already a group-of-1). Throws if the component is unknown.
+ */
+export function dissolveGroup(model: StructuralModel, componentId: ComponentId): StructuralModel {
+  const block = model.blocks.find((b) => b.components.some((c) => c.id === componentId));
+  if (!block) throw new Error("DISSOLVE_COMPONENT_NOT_FOUND");
+  const comp = block.components.find((c) => c.id === componentId)!;
+
+  const members = block.instances.filter((i) => i.componentId === componentId);
+  if (members.length < 2) return model; // already unique / not a real group
+
+  const cloneIdByInstance = new Map<InstanceId, ComponentId>();
+  const clones: Component[] = members.map((inst, k) => {
+    const cloneId = `${componentId}__each_${k}`;
+    cloneIdByInstance.set(inst.id, cloneId);
+    const partIds = inst.partIds && inst.partIds.length ? [...inst.partIds] : [...comp.partIds];
+    return { ...comp, id: cloneId, name: `${comp.name} ${k + 1}`, partIds };
+  });
+
+  const components = [...block.components.filter((c) => c.id !== componentId), ...clones];
+  const instances = block.instances.map((inst) => {
+    const cloneId = cloneIdByInstance.get(inst.id);
+    return cloneId ? { ...inst, componentId: cloneId, link: "linked" as const, partIds: null } : inst;
+  });
+
+  const newBlock: Block = { ...block, components, instances };
+  return { ...model, blocks: model.blocks.map((b) => (b.id === block.id ? newBlock : b)) };
+}
+
 /** Kinds the UI's "Add" verb can place. First slice supports `"shelf"`. */
 export type AddKind = "shelf" | "rail" | "divider" | "drawer" | "door";
 

@@ -39,6 +39,7 @@ export {
   addInstance,
   resizeBlockDepth,
   resizeBlockWidth,
+  dissolveGroup,
 } from "./_engine/structure/operations";
 export { countExceptions, leafSections } from "./_engine/contracts/structure";
 
