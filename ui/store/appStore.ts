@@ -212,6 +212,8 @@ export interface AppState {
   setJunction(instanceId: InstanceId, junction: Junction3D | null): void;
   /** Start a fresh L-corner project (blocker #1) — swaps the model, resets history. */
   loadLCorner(): void;
+  /** Start a fresh straight (rectangular) project — the inverse of loadLCorner (round-trip). */
+  loadStraight(): void;
   undo(): void;
   redo(): void;
   /** E1: drill the live model, run the safety gate, and emit a byte-exact SWJ008 cut file.
@@ -419,7 +421,11 @@ export const useApp = create<AppState>((set, get) => ({
   },
   loadLCorner() {
     const m = buildLCornerModel();
-    set({ model: m, past: [], future: [], selection: NO_SELECTION, ...derive(m) });
+    set({ model: m, past: [], future: [], selection: NO_SELECTION, hiddenIds: [], ...derive(m) });
+  },
+  loadStraight() {
+    const m = buildDemoModel();
+    set({ model: m, past: [], future: [], selection: NO_SELECTION, hiddenIds: [], ...derive(m) });
   },
 
   exportCutFile() {
