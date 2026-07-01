@@ -9,7 +9,7 @@
 // through to the 3D. DEMO_PREVIEW shows only if the live scene is ever empty.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, Pressable, PanResponder, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
 import { usePanelUi } from "../sheets/panelUi";
 import { C, FONT, R } from "../../theme";
@@ -30,7 +30,7 @@ const POL_MAX = 1.45;
 // PanResponder sees it (the reason it "did nothing" on a touchscreen). RN's ViewStyle has no
 // touchAction, so this is cast; react-native-web forwards it straight to the DOM as CSS.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const JOY_NO_TOUCH_SCROLL: any = { touchAction: "none", userSelect: "none" };
+const JOY_NO_TOUCH_SCROLL: any = { touchAction: "none", userSelect: "none", cursor: "grab" };
 
 export function CanvasView() {
   const sceneData = useApp((s) => s.scene);
@@ -62,6 +62,7 @@ export function CanvasView() {
   // OrbitControls (in CanvasScene) owns the camera — drag to orbit, wheel/pinch to zoom. The joystick
   // nudges it through this ref.
   const controlsRef = useRef<OrbitLike | null>(null);
+  const knobEl = useRef<any>(null); // web: the knob's DOM node (raw pointer drag target)
   // The move/resize/divide sheets live in the SHARED single overlay slot (panelUi) — same slot as
   // add/export/menu/layers — so only one bottom panel is ever visible at a time.
   const overlay = usePanelUi((s) => s.overlay);
@@ -121,24 +122,53 @@ export function CanvasView() {
   };
   const resetCam = () => controlsRef.current?.reset();
 
-  // The WHOLE joystick circle is a drag pad: dragging anywhere in it orbits the camera (dx→yaw,
-  // dy→pitch). A tap still falls through to the arrows (discrete nudge). Incremental deltas = smooth.
-  const joyLast = useRef({ x: 0, y: 0 });
-  const joyPan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false, // let a tap reach the arrows
-      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) + Math.abs(g.dy) > 2, // a drag claims it
-      onPanResponderGrant: () => {
-        joyLast.current = { x: 0, y: 0 };
-      },
-      onPanResponderMove: (_e, g) => {
-        const dAz = (g.dx - joyLast.current.x) * 0.014;
-        const dPol = -(g.dy - joyLast.current.y) * 0.014;
-        joyLast.current = { x: g.dx, y: g.dy };
-        nudgeCam(dPol, dAz);
-      },
-    }),
-  ).current;
+  // The centre knob is a drag stick: press it and drag to orbit (dx→yaw, dy→pitch). RN's
+  // PanResponder proved unreliable on a real touchscreen — the browser stole the finger-drag as a
+  // page scroll before the responder could claim it. So on web we bind RAW pointer events to the
+  // knob's DOM node and call setPointerCapture: the browser then routes every pointermove to the
+  // knob (even off-element) until release — the reference-quality way to drag on the web. The
+  // arrows (separate Pressables) still give discrete nudges; dragging empty canvas still orbits via
+  // OrbitControls. Deltas are incremental → smooth.
+  useEffect(() => {
+    const el = knobEl.current;
+    if (!el || typeof el.addEventListener !== "function") return; // native → no-op
+    let last: { x: number; y: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      last = { x: e.clientX, y: e.clientY };
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        /* not all engines support capture — pointermove on document still fires */
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!last) return;
+      nudgeCam(-(e.clientY - last.y) * 0.01, (e.clientX - last.x) * 0.01);
+      last = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+    };
+    const onUp = (e: PointerEvent) => {
+      last = null;
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {
+        /* noop */
+      }
+    };
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onUp);
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Route taps: merge-mode collects sections; a divider becomes the move target; else a selection.
   const handleTap = (id: string) => {
@@ -312,20 +342,23 @@ export function CanvasView() {
             <HudBtn glyph="⊘" onPress={deselectAll} dark />
           </View>
 
-          {/* Joystick — DRAG anywhere on the circle (incl. the knob) to orbit smoothly; tap an arrow
-              for a discrete nudge. (Dragging the 3D model + wheel/pinch zoom = OrbitControls.) */}
-          <View style={[styles.joy, JOY_NO_TOUCH_SCROLL]} {...joyPan.panHandlers}>
-            <JoyArrow style={styles.joyUp} glyph="▲" onChange={() => nudgeCam(-POL_STEP, 0)} />
-            <JoyArrow style={styles.joyDn} glyph="▼" onChange={() => nudgeCam(POL_STEP, 0)} />
-            <JoyArrow style={styles.joyLf} glyph="◀" onChange={() => nudgeCam(0, -AZ_STEP)} />
-            <JoyArrow style={styles.joyRt} glyph="▶" onChange={() => nudgeCam(0, AZ_STEP)} />
-            <View style={styles.knob} pointerEvents="none" />
-          </View>
-
           {/* Undo/redo — wired to the store history; disabled when the stack is empty. */}
           <View style={[styles.hudCluster, styles.hudRight]}>
             <HudBtn glyph="↺" onPress={undo} disabled={!canUndo} />
             <HudBtn glyph="↻" onPress={redo} disabled={!canRedo} />
+          </View>
+
+          {/* Joystick — absolute-centred, so it's rendered LAST (+ zIndex) to paint ABOVE the HUD
+              clusters; otherwise a cluster's row box covers the knob and eats its press. DRAG the
+              centre stick to orbit smoothly; tap an arrow for a discrete nudge. (Dragging the 3D
+              model + wheel/pinch zoom = OrbitControls.) */}
+          <View style={styles.joy} pointerEvents="box-none">
+            <JoyArrow style={styles.joyUp} glyph="▲" onChange={() => nudgeCam(-POL_STEP, 0)} />
+            <JoyArrow style={styles.joyDn} glyph="▼" onChange={() => nudgeCam(POL_STEP, 0)} />
+            <JoyArrow style={styles.joyLf} glyph="◀" onChange={() => nudgeCam(0, -AZ_STEP)} />
+            <JoyArrow style={styles.joyRt} glyph="▶" onChange={() => nudgeCam(0, AZ_STEP)} />
+            {/* Centre stick — press & drag to orbit (raw pointer handlers bound in the effect). */}
+            <View ref={knobEl} style={[styles.knob, JOY_NO_TOUCH_SCROLL]} />
           </View>
         </View>
         )}
@@ -604,6 +637,7 @@ const styles = StyleSheet.create({
     bottom: -4,
     width: 104,
     height: 104,
+    zIndex: 30, // paint above the HUD clusters so the knob is the topmost hit target
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.9)",
     borderWidth: 1,
@@ -611,7 +645,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  knob: { width: 46, height: 46, borderRadius: 999, backgroundColor: "#fff", shadowColor: "#141414", shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
+  knob: { width: 50, height: 50, borderRadius: 999, backgroundColor: "#fff", borderWidth: 2, borderColor: "rgba(150,150,148,0.55)", shadowColor: "#141414", shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
   joyAr: {
     position: "absolute",
     width: 26,
