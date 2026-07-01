@@ -91,6 +91,51 @@ export function doublePanel(base: Part): [Part, Part] {
   return [outer, inner];
 }
 
+// Glazed-grid dimensions (CONSTRUCTION_FRAME_v3 Piece 2). NOT fixture-grounded — reasonable
+// defaults, confirm at the factory (S3-E7). Frame + muntins are 16/32mm wood; the pane is 3mm glass.
+const GLAZED_FRAME_W: mm10 = 400; // 40 mm outer stile/rail width
+const GLAZED_MUNTIN_W: mm10 = 200; // 20 mm muntin bar width
+const GLASS_MM10: mm10 = 30; // 3 mm glass pane (factory OYNA panes measure 3mm)
+
+/** A glass pane Part — 3mm, no grain, no edge-banding. */
+function glassPane(id: string, name: string, length_mm10: mm10, width_mm10: mm10): Part {
+  return { id, name, length_mm10, width_mm10, thickness_mm10: GLASS_MM10, grain: "NONE", edges: [0, 0, 0, 0], operations: [] };
+}
+
+/**
+ * A glazed-GRID door → the full assembly: outer frame (2 stiles + 2 rails, 32mm doubled, banded)
+ * + (lights−1) muntins (16mm) + `lights` glass panes (3mm), stacked along the door height (X).
+ * v3 Piece 2: the outer frame is a 32mm group, the muntins a 16mm group. Dimensions use the
+ * flagged glazed-grid defaults above.
+ */
+function glazedGridParts(idBase: string, name: string, length: mm10, width: mm10, lights: number): Part[] {
+  const Fw = GLAZED_FRAME_W;
+  const Mw = GLAZED_MUNTIN_W;
+  const n = Math.max(1, Math.round(lights));
+  const innerW = width - 2 * Fw; // opening width between the stiles
+  const innerH = length - 2 * Fw; // opening height between the rails
+  const parts: Part[] = [];
+
+  // Outer frame — 32mm (two glued 16mm boards each), banded all round.
+  parts.push(...doublePanel(panel(`${idBase}__stile_l`, `${name} · стойка Л`, length, Fw, allBand())));
+  parts.push(...doublePanel(panel(`${idBase}__stile_r`, `${name} · стойка П`, length, Fw, allBand())));
+  parts.push(...doublePanel(panel(`${idBase}__rail_b`, `${name} · рама низ`, innerW, Fw, allBand())));
+  parts.push(...doublePanel(panel(`${idBase}__rail_t`, `${name} · рама верх`, innerW, Fw, allBand())));
+
+  // Muntins — 16mm bars between the lights.
+  for (let i = 0; i < n - 1; i += 1) {
+    parts.push(panel(`${idBase}__muntin_${i}`, `${name} · раскладка ${i + 1}`, innerW, Mw));
+  }
+
+  // Glass panes — 3mm, one per light; the opening height splits evenly after the muntins.
+  const paneH = Math.floor((innerH - (n - 1) * Mw) / n);
+  for (let i = 0; i < n; i += 1) {
+    parts.push(glassPane(`${idBase}__glass_${i}`, `${name} · стекло ${i + 1}`, paneH, innerW));
+  }
+
+  return parts;
+}
+
 /** Carcass box: two sides (full height × depth) + top + bottom (inner width × depth). */
 function carcassParts(block: Block): Part[] {
   const { w, h, d } = block.box;
@@ -143,6 +188,9 @@ function instanceParts(block: Block, inst: Instance): Part[] {
   if (component.role === "facade") {
     const length = section.box.h; // door height (X) — hinge cups run along this axis
     const width = section.box.w; // door width (Y)
+    if (component.glazedGrid) {
+      return glazedGridParts(`${block.id}__inst_${inst.id}`, component.name, length, width, component.glazedGrid.lights);
+    }
     const base = panel(`${block.id}__inst_${inst.id}`, component.name, length, width, allBand());
     return component.doubled ? doublePanel(base) : [base];
   }

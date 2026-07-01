@@ -193,6 +193,13 @@ export interface Component {
    * groove (L8 #38 — "the groove that holds the pane is cut, not implied"). Optional/additive.
    */
   readonly glazed?: boolean;
+  /**
+   * Glazed-GRID facade (CONSTRUCTION_FRAME_v3 Piece 2): the door is a frame of `lights` glass
+   * panes stacked along its height, separated by muntins. The solver emits the assembly — outer
+   * frame members (32mm doubled) + (lights−1) muntins (16mm) + `lights` glass panes (3mm) —
+   * instead of one door panel. Optional/additive.
+   */
+  readonly glazedGrid?: { readonly lights: number };
 }
 
 /** Whether an instance follows its Component definition or overrides it. */
