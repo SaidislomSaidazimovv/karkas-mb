@@ -48,6 +48,7 @@ export function SelectionSheet() {
   const mode = useApp((s) => s.mode);
   const resize = useApp((s) => s.resize);
   const detach = useApp((s) => s.detach);
+  const eachDiffers = useApp((s) => s.eachDiffers);
   const addOpen = usePanelUi((s) => s.addOpen);
   const exportOpen = usePanelUi((s) => s.exportOpen);
   const menuOpen = usePanelUi((s) => s.menuOpen);
@@ -109,8 +110,13 @@ export function SelectionSheet() {
     }
     apply();
   };
-  const resolveChoice = () => {
-    if (cid) setChosen((prev) => new Set(prev).add(cid));
+  // «связать» = keep linked (local memory only). «каждая своя» = ALSO dissolve the group in the
+  // engine (E10 eachDiffers → N independent group-of-1; edits stop propagating; undo-able).
+  const resolveChoice = (dissolve: boolean) => {
+    if (cid) {
+      setChosen((prev) => new Set(prev).add(cid));
+      if (dissolve) eachDiffers(cid);
+    }
     pending?.();
     setPending(null);
   };
@@ -122,8 +128,8 @@ export function SelectionSheet() {
         <Grab />
         <SheetHeader icon="link" title={`Новая группа · ${count} деталей`} role="Первая правка — как ведём?" />
         <Text style={styles.hint}>Один раз. Запомним выбор.</Text>
-        <MenuRow icon="link" title="Держать связанными" sub={`правка одной → всем ${count} (как тип)`} trailing="check" onPress={resolveChoice} />
-        <MenuRow icon="cut" title="Каждая будет своя" sub={`группа распадётся → ${count} уникальных, без тах`} onPress={resolveChoice} />
+        <MenuRow icon="link" title="Держать связанными" sub={`правка одной → всем ${count} (как тип)`} trailing="check" onPress={() => resolveChoice(false)} />
+        <MenuRow icon="cut" title="Каждая будет своя" sub={`группа распадётся → ${count} уникальных, без тах`} onPress={() => resolveChoice(true)} />
       </View>
     );
   }
