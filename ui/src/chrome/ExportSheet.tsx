@@ -1,8 +1,10 @@
 // src/chrome/ExportSheet.tsx — «Готово»/CNC-export shell. OWNER: T2.
 //
-// S3-T2D: the visual «Каркас готов» flow — a real cut-list built from store.scene (every solved
-// panel) + the live price_sum + part count, with an «Экспорт На ЧПУ» button. The button is a
-// SEAM: it stays a no-op placeholder until the engine emits the real SWJ008 file (S3-E2/E6).
+// S3-T2D: the visual «Каркас готов» flow — a real cut-list from store.scene + live price + count.
+// S3-U1: «Экспорт На ЧПУ» is now WIRED to the engine — store.exportCutFile() returns byte-exact
+//   SWJ008 XML (drill + emit-gate passed) or a gate error. On success we download it as an .xml
+//   (web Blob + <a download>) and show «Готово ✓»; on failure we show the gate error in a red
+//   banner and leave the button ready to retry. The cut-list preview is unchanged.
 // design: Part-1 «Готово» screen (cut-list · ticker · export-to-CNC).
 import { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
@@ -18,11 +20,42 @@ function faceSize(w_mm10: number, h_mm10: number, d_mm10: number): string {
   return `${dims[0]} × ${dims[1]} мм`;
 }
 
+/** Trigger a browser file download (web only). Returns false on native (no DOM). */
+function downloadXml(filename: string, text: string): boolean {
+  const g = globalThis as any;
+  if (typeof g.document === "undefined" || typeof g.Blob === "undefined") return false;
+  const blob = new g.Blob([text], { type: "application/xml" });
+  const url = g.URL.createObjectURL(blob);
+  const a = g.document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  g.document.body.appendChild(a);
+  a.click();
+  g.document.body.removeChild(a);
+  g.URL.revokeObjectURL(url);
+  return true;
+}
+
 export function ExportSheet() {
   const scene = useApp((s) => s.scene);
   const price = useApp((s) => s.price_sum);
+  const exportCutFile = useApp((s) => s.exportCutFile);
   const closeExport = usePanelUi((s) => s.closeExport);
-  const [queued, setQueued] = useState(false);
+
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onExport = () => {
+    const res = exportCutFile();
+    if (res.ok) {
+      downloadXml("karkas_swj008.xml", res.text);
+      setError(null);
+      setDone(true);
+    } else {
+      setDone(false);
+      setError(res.error);
+    }
+  };
 
   return (
     <View style={[sheetBase, styles.over]}>
@@ -53,10 +86,19 @@ export function ExportSheet() {
         ))}
       </ScrollView>
 
-      <Pressable style={[styles.cnc, queued && styles.cncDone]} onPress={() => setQueued(true)}>
-        <Text style={styles.cncTxt}>{queued ? "В очереди на ЧПУ ✓" : "Экспорт На ЧПУ"}</Text>
+      {error ? (
+        <View style={styles.errBanner}>
+          <Icon name="warn" size={14} color="#D4392F" />
+          <Text style={styles.errTxt}>{error}</Text>
+        </View>
+      ) : null}
+
+      <Pressable style={[styles.cnc, done && styles.cncDone]} onPress={onExport}>
+        <Text style={styles.cncTxt}>{done ? "Готово ✓" : "Экспорт На ЧПУ"}</Text>
       </Pressable>
-      <Text style={styles.seam}>Формат SWJ008 · подключается, когда движок эмитит файл (S3-E2/E6)</Text>
+      <Text style={styles.seam}>
+        {done ? "Файл SWJ008 загружен (karkas_swj008.xml)" : "Формат SWJ008 · крой-файл станка (byte-exact)"}
+      </Text>
     </View>
   );
 }
@@ -77,6 +119,12 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F2F1EE" },
   rowName: { fontFamily: FONT, fontSize: 14, fontWeight: "600", color: C.ink, flex: 1, paddingRight: 10 },
   rowDim: { fontFamily: FONT, fontSize: 13, color: C.ink3 },
+
+  errBanner: {
+    flexDirection: "row", alignItems: "flex-start", gap: 8,
+    backgroundColor: "#FBECED", borderRadius: 12, padding: 10, marginTop: 12,
+  },
+  errTxt: { fontFamily: FONT, fontSize: 12.5, color: "#D4392F", flex: 1, lineHeight: 17 },
 
   cnc: { height: 50, borderRadius: R.pill, backgroundColor: C.black, alignItems: "center", justifyContent: "center", marginTop: 14 },
   cncDone: { backgroundColor: C.ok },
