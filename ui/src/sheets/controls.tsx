@@ -2,6 +2,7 @@
 // Numeric stepper / segment / toggle / menu-row / list-row / badge — the control
 // vocabulary the Selection card composes per mode (design: construction-v3-preview.html §3/§5).
 
+import { useState } from "react";
 import { View, Text, Pressable, StyleSheet, type ViewStyle } from "react-native";
 import { C, FONT, R } from "../../theme";
 import { Icon, type IconName } from "../chrome/Icon";
@@ -255,6 +256,46 @@ const ek = StyleSheet.create({
   edgeOn: { color: C.ink },
   val: { fontFamily: FONT, fontSize: 14, fontWeight: "800", color: C.disabled },
   valOn: { color: C.selLine },
+});
+
+/* ---- non-blocking ⚠ warnings (S3-U3) — stability / hinge-fit / motion findings ----
+   Collapsed pill «⚠ N …»; tap expands the per-finding message_ru list. risk=red, warn=amber. */
+export type WarnLevel = "warn" | "risk";
+export type WarnItem = { level: WarnLevel; message: string };
+
+export function Warnings({ items }: { items: readonly WarnItem[] }) {
+  const [open, setOpen] = useState(false);
+  if (items.length === 0) return null;
+  const worst: WarnLevel = items.some((i) => i.level === "risk") ? "risk" : "warn";
+  const tone = worst === "risk" ? { bg: "#FBECED", fg: "#D4392F" } : { bg: "#FBF0E2", fg: C.warn };
+  const summary = items.length === 1 ? "1 предупреждение" : `${items.length} предупреждения`;
+  return (
+    <View style={w.wrap}>
+      <Pressable style={[w.pill, { backgroundColor: tone.bg }]} onPress={() => setOpen((v) => !v)}>
+        <Icon name="warn" size={13} color={tone.fg} />
+        <Text style={[w.pillTxt, { color: tone.fg }]}>{summary}</Text>
+        <Text style={[w.caret, { color: tone.fg }]}>{open ? "▾" : "▸"}</Text>
+      </Pressable>
+      {open
+        ? items.map((it, i) => (
+            <View key={i} style={w.msgRow}>
+              <View style={[w.dot, { backgroundColor: it.level === "risk" ? "#D4392F" : C.warn }]} />
+              <Text style={w.msgTxt}>{it.message}</Text>
+            </View>
+          ))
+        : null}
+    </View>
+  );
+}
+
+const w = StyleSheet.create({
+  wrap: { paddingTop: 8, paddingBottom: 2 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", height: 26, paddingHorizontal: 10, borderRadius: 999 },
+  pillTxt: { fontFamily: FONT, fontSize: 12.5, fontWeight: "700" },
+  caret: { fontFamily: FONT, fontSize: 11, fontWeight: "700" },
+  msgRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingTop: 8 },
+  dot: { width: 7, height: 7, borderRadius: 999, marginTop: 5 },
+  msgTxt: { fontFamily: FONT, fontSize: 12.5, color: C.ink3, flex: 1, lineHeight: 17 },
 });
 
 export const sheetBase: ViewStyle = {

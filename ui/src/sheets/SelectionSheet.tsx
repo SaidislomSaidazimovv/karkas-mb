@@ -23,7 +23,7 @@ import { ExportSheet } from "../chrome/ExportSheet";
 import { MenuSheet } from "../chrome/MenuSheet";
 import {
   Grab, SheetHeader, Badge, NumberStepper, Segment, Toggle, MenuRow, ListRow,
-  EdgeKromka, NEXT_BAND, type EdgeBand, type EdgeKey, sheetBase,
+  EdgeKromka, NEXT_BAND, type EdgeBand, type EdgeKey, Warnings, type WarnItem, sheetBase,
 } from "./controls";
 
 const MATERIAL_CATALOG = [
@@ -51,6 +51,10 @@ export function SelectionSheet() {
   const addOpen = usePanelUi((s) => s.addOpen);
   const exportOpen = usePanelUi((s) => s.exportOpen);
   const menuOpen = usePanelUi((s) => s.menuOpen);
+  // non-blocking ⚠ findings (E7/E6/E9) — shown for the selected instance(s)
+  const stability = useApp((s) => s.stability);
+  const hingeFit = useApp((s) => s.hingeFit);
+  const motionClearance = useApp((s) => s.motionClearance);
 
   const partId = selection.partIds[0];
   const placement: PanelPlacement | undefined = scene.find((p) => p.id === partId);
@@ -89,6 +93,14 @@ export function SelectionSheet() {
   const cid = selection.componentId;
   const instId = selection.instanceIds[0];
 
+  // non-blocking ⚠ findings for the selected instance(s) — stability(level) + hinge + motion(warn)
+  const selInst = new Set(selection.instanceIds);
+  const warnings: WarnItem[] = [
+    ...stability.filter((f) => selInst.has(f.instanceId)).map((f) => ({ level: f.level, message: f.message_ru })),
+    ...hingeFit.filter((f) => selInst.has(f.instanceId)).map((f) => ({ level: "warn" as const, message: f.message_ru })),
+    ...motionClearance.filter((f) => selInst.has(f.instanceId)).map((f) => ({ level: "warn" as const, message: f.message_ru })),
+  ];
+
   // gate a fresh real group's first edit behind the one-time choice
   const guard = (apply: () => void) => {
     if (isGroup && cid && !chosen.has(cid)) {
@@ -119,6 +131,7 @@ export function SelectionSheet() {
   return (
     <View style={sheetBase}>
       <Grab />
+      <Warnings items={warnings} />
       {mode === "build" && (
         <BuildBody
           name={name}
@@ -253,7 +266,7 @@ function FrameBody({ name, partial, onPartial }: { name: string; partial: boolea
       <SheetHeader icon="double" title={name} role="⧉ удвоение · 32 мм фронт">
         <Badge icon="double" label="2 слоя" tone="comp" />
         <Badge label="кромка 32мм" tone="neutral" />
-        <Badge icon="warn" label="риск" tone="warn" />
+        {/* S3-U3: static «риск» removed — live ⚠ now renders from store findings via <Warnings/> */}
       </SheetHeader>
       <Toggle label="Частичное удвоение (фронт 100мм)" value={partial} onChange={onPartial} />
     </>
