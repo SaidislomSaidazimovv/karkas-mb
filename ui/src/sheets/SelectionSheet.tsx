@@ -13,9 +13,9 @@
 // their engine backing (S3-E5/E6); their header shows the real selected part name.
 // design: construction-v3-preview.html §3 + §5.
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp } from "../../store/appStore";
-import type { PanelPlacement, StructuralModel } from "../../engineBridge";
+import type { BandTransition, Junction3D, PanelPlacement, StructuralModel } from "../../engineBridge";
 import { C, FONT } from "../../theme";
 import { usePanelUi } from "./panelUi";
 import { AddSheet } from "./AddSheet";
@@ -41,6 +41,26 @@ function componentName(model: StructuralModel | null, componentId?: string): str
   return null;
 }
 
+/** #39: current corner band-transition of the selected component (default "butt"). */
+function componentBand(model: StructuralModel | null, componentId?: string): BandTransition | undefined {
+  if (!model || !componentId) return undefined;
+  for (const b of model.blocks) {
+    const c = b.components.find((x) => x.id === componentId);
+    if (c) return c.bandTransition;
+  }
+  return undefined;
+}
+
+/** #40: current off-plane junction offset of the selected instance (absent = flush). */
+function instanceJunction(model: StructuralModel | null, instanceId?: string): Junction3D | undefined {
+  if (!model || !instanceId) return undefined;
+  for (const b of model.blocks) {
+    const i = b.instances.find((x) => x.id === instanceId);
+    if (i) return i.junction;
+  }
+  return undefined;
+}
+
 export function SelectionSheet() {
   const model = useApp((s) => s.model);
   const scene = useApp((s) => s.scene);
@@ -49,6 +69,8 @@ export function SelectionSheet() {
   const resize = useApp((s) => s.resize);
   const detach = useApp((s) => s.detach);
   const eachDiffers = useApp((s) => s.eachDiffers);
+  const setBandTransition = useApp((s) => s.setBandTransition);
+  const setJunction = useApp((s) => s.setJunction);
   const addOpen = usePanelUi((s) => s.addOpen);
   const exportOpen = usePanelUi((s) => s.exportOpen);
   const menuOpen = usePanelUi((s) => s.menuOpen);
@@ -58,6 +80,7 @@ export function SelectionSheet() {
   const motionClearance = useApp((s) => s.motionClearance);
 
   const partId = selection.partIds[0];
+  const instId0 = selection.instanceIds[0];
   const placement: PanelPlacement | undefined = scene.find((p) => p.id === partId);
   const name = componentName(model, selection.componentId) ?? placement?.name ?? "Деталь";
 
@@ -78,6 +101,16 @@ export function SelectionSheet() {
   const [partial, setPartial] = useState(true);
   const [edges, setEdges] = useState<Record<EdgeKey, EdgeBand>>({ t: "16", b: "16", l: "16", r: "16" });
   const cycleEdge = (e: EdgeKey) => setEdges((prev) => ({ ...prev, [e]: NEXT_BAND[prev[e]] }));
+
+  // #40 junction offset (mm) — seeded from the selected instance's model value on selection change
+  const [jun, setJun] = useState<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
+  useEffect(() => {
+    const j = instanceJunction(model, instId0);
+    setJun(j
+      ? { x: Math.round(j.oversail_x_mm10 / 10), y: Math.round(j.stepBack_y_mm10 / 10), z: Math.round(j.shadowGap_z_mm10 / 10) }
+      : { x: 0, y: 0, z: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instId0]);
 
   // one-time group choice (#36) — remembered per componentId
   const [chosen, setChosen] = useState<Set<string>>(new Set());
@@ -155,7 +188,22 @@ export function SelectionSheet() {
         <MaterialBody selected={material} onSelect={setMaterial} edges={edges} onCycleEdge={cycleEdge} />
       )}
       {mode === "hardware" && <HardwareBody name={name} value={hw} onChange={setHw} />}
-      {mode === "frame" && <FrameBody name={name} partial={partial} onPartial={setPartial} />}
+      {mode === "frame" && (
+        <FrameBody
+          name={name}
+          partial={partial}
+          onPartial={setPartial}
+          band={componentBand(model, cid) ?? "butt"}
+          onBand={(v) => { if (cid) setBandTransition(cid, v); }}
+          jx={jun.x}
+          jy={jun.y}
+          jz={jun.z}
+          onJx={(mm) => { setJun((p) => ({ ...p, x: mm })); if (instId0) setJunction(instId0, { oversail_x_mm10: mm * 10, stepBack_y_mm10: jun.y * 10, shadowGap_z_mm10: jun.z * 10 }); }}
+          onJy={(mm) => { setJun((p) => ({ ...p, y: mm })); if (instId0) setJunction(instId0, { oversail_x_mm10: jun.x * 10, stepBack_y_mm10: mm * 10, shadowGap_z_mm10: jun.z * 10 }); }}
+          onJz={(mm) => { setJun((p) => ({ ...p, z: mm })); if (instId0) setJunction(instId0, { oversail_x_mm10: jun.x * 10, stepBack_y_mm10: jun.y * 10, shadowGap_z_mm10: mm * 10 }); }}
+          onReset={() => { setJun({ x: 0, y: 0, z: 0 }); if (instId0) setJunction(instId0, null); }}
+        />
+      )}
     </View>
   );
 }
@@ -265,8 +313,16 @@ function HardwareBody({
   );
 }
 
-/* ===================== FRAME (placeholder body — engine: S3-E6) ===================== */
-function FrameBody({ name, partial, onPartial }: { name: string; partial: boolean; onPartial: (v: boolean) => void }) {
+/* ===================== FRAME (live: #39 band-transition + #40 junction editor) ===================== */
+function FrameBody({
+  name, partial, onPartial, band, onBand, jx, jy, jz, onJx, onJy, onJz, onReset,
+}: {
+  name: string; partial: boolean; onPartial: (v: boolean) => void;
+  band: BandTransition; onBand: (v: BandTransition) => void;
+  jx: number; jy: number; jz: number;
+  onJx: (mm: number) => void; onJy: (mm: number) => void; onJz: (mm: number) => void;
+  onReset: () => void;
+}) {
   return (
     <>
       <SheetHeader icon="double" title={name} role="⧉ удвоение · 32 мм фронт">
@@ -275,6 +331,29 @@ function FrameBody({ name, partial, onPartial }: { name: string; partial: boolea
         {/* S3-U3: static «риск» removed — live ⚠ now renders from store findings via <Warnings/> */}
       </SheetHeader>
       <Toggle label="Частичное удвоение (фронт 100мм)" value={partial} onChange={onPartial} />
+
+      {/* #39 corner band-transition (32↔16 в углу) — emitted, not assumed */}
+      <Text style={styles.sectionLabel}>Стык кромок в углу · #39</Text>
+      <Segment
+        value={band}
+        onChange={onBand}
+        options={[
+          { key: "butt", label: "Стык" },
+          { key: "mitre", label: "Ус" },
+          { key: "overlap", label: "Нахлёст" },
+        ]}
+      />
+
+      {/* #40 junction value editor (X/Y/Z) — off-plane offset, 3 values not 1 action */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionLabel}>Смещение стыка · #40</Text>
+        <Pressable onPress={onReset} hitSlop={6}>
+          <Text style={styles.reset}>Сбросить</Text>
+        </Pressable>
+      </View>
+      <NumberStepper label="Вынос · X" value_mm={jx} step={1} max={200} onChange={onJx} />
+      <NumberStepper label="Отступ · Y" value_mm={jy} step={1} max={200} onChange={onJy} />
+      <NumberStepper label="Зазор · Z (тень)" value_mm={jz} step={1} max={200} onChange={onJz} />
     </>
   );
 }
@@ -283,6 +362,9 @@ const styles = StyleSheet.create({
   over: { borderTopWidth: 0, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: -4 } },
   hint: { fontFamily: FONT, fontSize: 12.5, color: "#6B6862", marginTop: 2, marginBottom: 6 },
   note: { fontFamily: FONT, fontSize: 12, color: C.ink2, textAlign: "center", paddingTop: 12 },
+  sectionLabel: { fontFamily: FONT, fontSize: 12.5, fontWeight: "700", color: C.ink3, paddingTop: 14, paddingBottom: 8 },
+  sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  reset: { fontFamily: FONT, fontSize: 12.5, fontWeight: "700", color: C.selLine, paddingTop: 14, paddingBottom: 8 },
   counts: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
   countsTxt: { fontFamily: FONT, fontSize: 13, fontWeight: "700", color: C.ink },
   filter: { height: 34, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: C.line, justifyContent: "center" },
