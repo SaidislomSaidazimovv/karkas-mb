@@ -183,6 +183,11 @@ export interface Component {
   readonly partIds: readonly PartId[];
   /** Dominant panel role of the type, when it has one. */
   readonly role: PanelRole | null;
+  /**
+   * L1 doubling: `true` = 32mm build = TWO glued 16mm boards (never one 32mm board). The solver
+   * emits two Part records per placement (layer A + B). Optional/additive — absent = single 16mm.
+   */
+  readonly doubled?: boolean;
 }
 
 /** Whether an instance follows its Component definition or overrides it. */

@@ -73,6 +73,20 @@ function panel(
  */
 const frontBand = (): Part["edges"] => [EDGE_BAND_MM10, 0, 0, 0];
 
+/**
+ * L1 doubling: a 32mm build = TWO glued 16mm boards, never one 32mm board. Emit two Part records
+ * (same geometry, 16mm each). The doubled edge wears ONE kromka run — the OUTER layer keeps the
+ * front band, the INNER layer is bare (the glue seam hides under the band). Follows L1 literally
+ * ("cut list emits two boards + wider kromka run").
+ * NOTE: the exact per-board SWJ008 encoding of a doubled edge's kromka run awaits a factory
+ * doubled-panel export to confirm (S3-E7); this is the L1-literal representation until then.
+ */
+export function doublePanel(base: Part): [Part, Part] {
+  const outer: Part = { ...base, id: `${base.id}__a`, name: `${base.name} · слой A`, operations: [] };
+  const inner: Part = { ...base, id: `${base.id}__b`, name: `${base.name} · слой B`, edges: [0, 0, 0, 0], operations: [] };
+  return [outer, inner];
+}
+
 /** Carcass box: two sides (full height × depth) + top + bottom (inner width × depth). */
 function carcassParts(block: Block): Part[] {
   const { w, h, d } = block.box;
@@ -105,19 +119,22 @@ function componentById(block: Block, componentId: string): Component | null {
   return block.components.find((c) => c.id === componentId) ?? null;
 }
 
-/** One placed instance → its content panel, sized from the section it sits in. */
-function instancePart(block: Block, inst: Instance): Part | null {
+/** One placed instance → its content panel(s), sized from the section it sits in.
+ *  Returns two boards when the component is `doubled` (L1), one otherwise, or none for
+ *  roles not yet emitted. */
+function instanceParts(block: Block, inst: Instance): Part[] {
   const section = sectionById(block, inst.sectionId);
   const component = componentById(block, inst.componentId);
-  if (!section || !component) return null;
-  // First slice handles shelves; other roles return null until their step.
+  if (!section || !component) return [];
+  // First slice handles shelves; other roles return [] until their step.
   if (component.role === "internal_shelf") {
     const length = section.box.w - 2 * BOARD_MM10; // span between sides / dividers (X)
     const width = section.box.d; // depth (Y)
     // Banded on the FRONT edge (Face 1 = edges[0] = the Y=Width depth-front edge) — see frontBand().
-    return panel(`${block.id}__inst_${inst.id}`, component.name, length, width, frontBand());
+    const base = panel(`${block.id}__inst_${inst.id}`, component.name, length, width, frontBand());
+    return component.doubled ? doublePanel(base) : [base];
   }
-  return null;
+  return [];
 }
 
 /**
@@ -130,10 +147,7 @@ export function solveStructure(model: StructuralModel): Part[] {
   for (const block of model.blocks) {
     parts.push(...carcassParts(block));
     for (const line of block.lines) parts.push(dividerPart(block, line));
-    for (const inst of block.instances) {
-      const part = instancePart(block, inst);
-      if (part) parts.push(part);
-    }
+    for (const inst of block.instances) parts.push(...instanceParts(block, inst));
   }
   return parts;
 }
