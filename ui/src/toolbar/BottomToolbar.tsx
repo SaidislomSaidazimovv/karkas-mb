@@ -3,7 +3,7 @@
 // design: construction-v3-preview.html §5 (.toolbar per mode).
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { useApp, type Mode } from "../../store/appStore";
+import { useApp, loadBearingTargets, anyLoadBearing, type Mode } from "../../store/appStore";
 import { usePanelUi } from "../sheets/panelUi";
 import { C, FONT, R } from "../../theme";
 import { Icon, type IconName } from "../chrome/Icon";
@@ -44,11 +44,23 @@ const SLOTS: Record<Mode, Slot[]> = {
 export function BottomToolbar() {
   const mode = useApp((s) => s.mode);
   const selection = useApp((s) => s.selection);
+  const model = useApp((s) => s.model);
+  const declareLoadBearing = useApp((s) => s.declareLoadBearing);
   const open = usePanelUi((s) => s.open);
   const close = usePanelUi((s) => s.close);
   const flashHint = usePanelUi((s) => s.flashHint);
   const slots = SLOTS[mode];
   const hasSel = selection.kind !== "none";
+
+  // L5 «Несущ.» (Hardware): declare the selected part — or every shelf in the selected section —
+  // load-bearing → stability ⚠ if over-span. Works from a reachable section tap, not only a shelf.
+  const runBearing = () => {
+    const targets = loadBearingTargets(model, selection);
+    if (targets.length === 0) return flashHint("Коснитесь детали или секции, потом «Несущ.»");
+    const cur = anyLoadBearing(model, targets);
+    targets.forEach((id) => declareLoadBearing(id, !cur));
+    flashHint(!cur ? "Помечено несущим — ⚠ при перегрузке" : "Отметка «несущая» снята");
+  };
 
   // A build verb press opens its sheet (most need a selection) — and if the precondition isn't met
   // it flashes a hint instead of silently doing nothing (that "dead button" feel the founder hit).
@@ -80,6 +92,7 @@ export function BottomToolbar() {
               // Build verbs open their sheet (Разм.→resize, Дел.→divide, Доб.→add); other modes edit
               // in the always-visible SelectionSheet body, so their verbs just clear a stray overlay.
               if (mode === "build") runBuildVerb(slot.key);
+              else if (mode === "hardware" && slot.key === "bearing") runBearing();
               else close();
             }}
           >

@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { checkStability, SPAN_LIMIT_16MM_MM10 } from "../engine/structure/stability.js";
+import { setLoadBearing } from "../engine/structure/operations.js";
 import type { PanelRole, StructuralModel } from "../engine/contracts/structure.js";
 
 /** One block whose single section is `sectionW` wide, holding one instance of the given role. */
@@ -65,5 +66,21 @@ describe("E7 — stability check (blocker #9, L5 non-blocking)", () => {
 
   it("exactly at the limit does not flag (strictly greater fires)", () => {
     expect(checkStability(shelfModel(SPAN_LIMIT_16MM_MM10))).toHaveLength(0);
+  });
+
+  it("flags a DECLARED load-bearing panel over span even when its role is not a shelf (L5)", () => {
+    const base = shelfModel(9000, "facade"); // a facade over 900mm — normally ignored (test above)
+    const f = checkStability(setLoadBearing(base, "c", true));
+    expect(f).toHaveLength(1);
+    expect(f[0]!.span_mm10).toBe(9000);
+  });
+
+  it("a declared load-bearing panel within the safe span is not flagged", () => {
+    expect(checkStability(setLoadBearing(shelfModel(5000, "facade"), "c", true))).toHaveLength(0);
+  });
+
+  it("clearing the declaration restores the non-flagged state", () => {
+    const declared = setLoadBearing(shelfModel(9000, "facade"), "c", true);
+    expect(checkStability(setLoadBearing(declared, "c", false))).toHaveLength(0);
   });
 });

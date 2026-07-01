@@ -33,6 +33,7 @@ import {
   selectByTap,
   setBandTransition as engineSetBandTransition,
   setJunction as engineSetJunction,
+  setLoadBearing as engineSetLoadBearing,
   solveLayout,
   solvePreview,
   solveStructure,
@@ -212,6 +213,27 @@ export function targetSectionId(model: StructuralModel | null, sel: Selection): 
   return sel.sectionId ?? firstLeafSectionId(model);
 }
 
+/** Component ids a load-bearing declaration targets for the current selection: the selected
+ *  component, else every component with an instance in the selected section (so declaring works by
+ *  tapping a reachable section, not only a hard-to-tap shelf). */
+export function loadBearingTargets(model: StructuralModel | null, sel: Selection): ComponentId[] {
+  if (!model) return [];
+  if (sel.componentId) return [sel.componentId];
+  if (sel.sectionId) {
+    const out = new Set<ComponentId>();
+    for (const b of model.blocks) for (const i of b.instances) if (i.sectionId === sel.sectionId) out.add(i.componentId);
+    return [...out];
+  }
+  return [];
+}
+
+/** Are any of the given components declared load-bearing? (toggle state for the «Несущ.» control). */
+export function anyLoadBearing(model: StructuralModel | null, ids: readonly ComponentId[]): boolean {
+  if (!model) return false;
+  for (const b of model.blocks) if (b.components.some((c) => ids.includes(c.id) && c.loadBearing === true)) return true;
+  return false;
+}
+
 // --- store -----------------------------------------------------------------
 
 export interface AppState {
@@ -253,6 +275,8 @@ export interface AppState {
   setBandTransition(componentId: ComponentId, transition: BandTransition): void;
   /** #40: set (or clear with null) an instance's off-plane junction offset. */
   setJunction(instanceId: InstanceId, junction: Junction3D | null): void;
+  /** L5: declare (or clear) a component/type as load-bearing → stability ⚠ if it's over-span. */
+  declareLoadBearing(componentId: ComponentId, value: boolean): void;
   /** Start a fresh L-corner project (blocker #1) — swaps the model, resets history. */
   loadLCorner(): void;
   /** Start a fresh straight (rectangular) project — the inverse of loadLCorner (round-trip). */
@@ -480,6 +504,15 @@ export const useApp = create<AppState>((set, get) => ({
     } catch {
       /* unknown instance — ignore; UI guards selection */
     }
+  },
+  declareLoadBearing(componentId, value) {
+    // L5: mark a component/type load-bearing → checkStability re-runs and raises a ⚠ if it's over
+    // the 16mm span limit. Non-blocking. No-op (same ref) when unchanged / unknown component.
+    const m = get().model;
+    if (!m) return;
+    const next = engineSetLoadBearing(m, componentId, value);
+    if (next === m) return;
+    applyEdit(get, set, next, true);
   },
   loadLCorner() {
     const m = buildLCornerModel();

@@ -230,6 +230,14 @@ export interface Component {
    * (out of scope). Absent = a static component.
    */
   readonly motion?: { readonly axis: Axis; readonly travel_mm10: mm10 };
+  /**
+   * L5 load-bearing declaration (CONSTRUCTION_FRAME_v3 §2:77 "Declare any cabinet/panel load-bearing
+   * → stability check → ⚠. Warns, never blocks."). `true` = the user declared this panel/type will
+   * carry load, so the stability span check applies to it even when its role is not an internal
+   * shelf. Non-blocking. Optional/additive — absent = not declared (internal shelves are still
+   * auto-checked by role, so nothing regresses).
+   */
+  readonly loadBearing?: boolean;
 }
 
 /** How two edge bands meet at a panel corner (#39). "mitre" 45° geometry is V2-deferred. */

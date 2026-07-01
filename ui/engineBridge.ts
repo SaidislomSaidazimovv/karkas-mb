@@ -42,6 +42,7 @@ export {
   dissolveGroup,
   setBandTransition,
   setJunction,
+  setLoadBearing,
 } from "./_engine/structure/operations";
 export { countExceptions, leafSections } from "./_engine/contracts/structure";
 

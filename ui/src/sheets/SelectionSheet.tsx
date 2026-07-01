@@ -14,7 +14,7 @@
 // design: construction-v3-preview.html §3 + §5.
 import { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { useApp } from "../../store/appStore";
+import { useApp, loadBearingTargets, anyLoadBearing } from "../../store/appStore";
 import type { BandTransition, Junction3D, PanelPlacement, StructuralModel } from "../../engineBridge";
 import { C, FONT } from "../../theme";
 import { usePanelUi } from "./panelUi";
@@ -72,6 +72,7 @@ export function SelectionSheet() {
   const eachDiffers = useApp((s) => s.eachDiffers);
   const setBandTransition = useApp((s) => s.setBandTransition);
   const setJunction = useApp((s) => s.setJunction);
+  const declareLoadBearing = useApp((s) => s.declareLoadBearing);
   const overlay = usePanelUi((s) => s.overlay);
   const openPanel = usePanelUi((s) => s.open);
   // non-blocking ⚠ findings (E7/E6/E9) — shown for the selected instance(s)
@@ -204,7 +205,15 @@ export function SelectionSheet() {
       {mode === "material" && (
         <MaterialBody selected={material} onSelect={setMaterial} edges={edges} onCycleEdge={cycleEdge} />
       )}
-      {mode === "hardware" && <HardwareBody name={name} value={hw} onChange={setHw} />}
+      {mode === "hardware" && (
+        <HardwareBody
+          name={name}
+          value={hw}
+          onChange={setHw}
+          bearing={anyLoadBearing(model, loadBearingTargets(model, selection))}
+          onBearing={(v) => loadBearingTargets(model, selection).forEach((id) => declareLoadBearing(id, v))}
+        />
+      )}
       {mode === "frame" && (
         <FrameBody
           name={name}
@@ -313,12 +322,20 @@ const HARDWARE_OPTIONS: Record<"hinge" | "handle" | "slide", { id: string; icon:
 };
 
 function HardwareBody({
-  name, value, onChange,
-}: { name: string; value: "hinge" | "handle" | "slide"; onChange: (k: "hinge" | "handle" | "slide") => void }) {
+  name, value, onChange, bearing, onBearing,
+}: {
+  name: string; value: "hinge" | "handle" | "slide"; onChange: (k: "hinge" | "handle" | "slide") => void;
+  bearing: boolean; onBearing: (v: boolean) => void;
+}) {
   const [pick, setPick] = useState<string>(HARDWARE_OPTIONS[value][0]!.id);
   return (
     <>
-      <SheetHeader icon="hinge" title={name} role="2 петли · накладная" />
+      <SheetHeader icon="hinge" title={name} role="2 петли · накладная">
+        {bearing ? <Badge icon="target" label="несущая" tone="cut" /> : null}
+      </SheetHeader>
+      {/* L5 «Несущ.» — declare this part load-bearing → a ⚠ appears above if its span is over the
+          16mm limit. Non-blocking (never blocks export). */}
+      <Toggle label="Несущая деталь (нагрузка)" value={bearing} onChange={onBearing} />
       <View style={{ paddingVertical: 6 }}>
         <Segment
           value={value}

@@ -963,3 +963,28 @@ export function setJunction(
     return { ...inst, junction };
   });
 }
+
+/**
+ * setLoadBearing (L5) — declare (or clear) a component/type as load-bearing. Mirrors
+ * setBandTransition: pure, returns the same reference when nothing changes so the store can no-op.
+ * The declaration is honoured by `checkStability` (a declared panel over the 16mm span limit raises
+ * a non-blocking ⚠ even when its role is not an internal shelf).
+ */
+export function setLoadBearing(
+  model: StructuralModel,
+  componentId: ComponentId,
+  value: boolean,
+): StructuralModel {
+  let changed = false;
+  const blocks = model.blocks.map((block) => {
+    const idx = block.components.findIndex((c) => c.id === componentId);
+    if (idx === -1) return block;
+    if ((block.components[idx]!.loadBearing === true) === value) return block; // no-op
+    changed = true;
+    const components = block.components.map((c, i) =>
+      i === idx ? { ...c, loadBearing: value } : c,
+    );
+    return { ...block, components };
+  });
+  return changed ? { ...model, blocks } : model;
+}

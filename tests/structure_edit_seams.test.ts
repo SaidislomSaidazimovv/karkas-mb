@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { setBandTransition, setJunction } from "../engine/structure/operations.js";
+import { setBandTransition, setJunction, setLoadBearing } from "../engine/structure/operations.js";
 import type { Junction3D, StructuralModel } from "../engine/contracts/structure.js";
 
 function model(): StructuralModel {
@@ -63,5 +63,21 @@ describe("edit seams — setJunction (#40)", () => {
 
   it("throws for an unknown instance", () => {
     expect(() => setJunction(model(), "nope", J)).toThrow();
+  });
+});
+
+describe("edit seams — setLoadBearing (L5)", () => {
+  it("declares and clears a component as load-bearing", () => {
+    const on = setLoadBearing(model(), "c", true);
+    expect(comp(on).loadBearing).toBe(true);
+    expect(comp(setLoadBearing(on, "c", false)).loadBearing).toBe(false);
+  });
+
+  it("is a no-op when unchanged or the component is unknown", () => {
+    const base = model(); // absent === not declared
+    expect(setLoadBearing(base, "c", false)).toBe(base);
+    expect(setLoadBearing(base, "nope", true)).toBe(base);
+    const on = setLoadBearing(base, "c", true);
+    expect(setLoadBearing(on, "c", true)).toBe(on);
   });
 });

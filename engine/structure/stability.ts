@@ -81,11 +81,14 @@ export function checkStability(model: StructuralModel): StabilityFinding[] {
 
   for (const block of model.blocks) {
     const byId = sectionsById(block);
-    const roleOf = (componentId: string) =>
-      block.components.find((c) => c.id === componentId)?.role ?? null;
 
     for (const inst of block.instances) {
-      if (roleOf(inst.componentId) !== "internal_shelf") continue;
+      const comp = block.components.find((c) => c.id === inst.componentId);
+      if (!comp) continue;
+      // Auto-check internal shelves (default) OR any component the user DECLARED load-bearing (L5).
+      const isShelf = comp.role === "internal_shelf";
+      const declared = comp.loadBearing === true;
+      if (!isShelf && !declared) continue;
       const section = byId.get(inst.sectionId);
       if (!section) continue;
 
@@ -109,7 +112,7 @@ export function checkStability(model: StructuralModel): StabilityFinding[] {
         limit_mm10: SPAN_LIMIT_16MM_MM10,
         deflection_mm: deflMm,
         level,
-        message_ru: `Полка «${inst.id}»: пролёт ${spanMm}мм превышает предел для ЛДСП 16мм (${limitMm}мм). Прогиб ≈ ${deflMm}мм. ${tail}`,
+        message_ru: `«${comp.name}»: пролёт ${spanMm}мм превышает предел для ЛДСП 16мм (${limitMm}мм). Прогиб ≈ ${deflMm}мм. ${tail}`,
       });
     }
   }
