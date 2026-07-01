@@ -127,9 +127,9 @@ export function partialDoublePanels(base: Part, front_mm10: mm10): [Part, Part] 
 
 // Glazed-grid dimensions (CONSTRUCTION_FRAME_v3 Piece 2). NOT fixture-grounded — reasonable
 // defaults, confirm at the factory (S3-E7). Frame + muntins are 16/32mm wood; the pane is 3mm glass.
-const GLAZED_FRAME_W: mm10 = 400; // 40 mm outer stile/rail width
-const GLAZED_MUNTIN_W: mm10 = 200; // 20 mm muntin bar width
-const GLASS_MM10: mm10 = 30; // 3 mm glass pane (factory OYNA panes measure 3mm)
+export const GLAZED_FRAME_W: mm10 = 400; // 40 mm outer stile/rail width
+export const GLAZED_MUNTIN_W: mm10 = 200; // 20 mm muntin bar width
+export const GLASS_MM10: mm10 = 30; // 3 mm glass pane (factory OYNA panes measure 3mm)
 
 /** A glass pane Part — 3mm, no grain, no edge-banding. */
 function glassPane(id: string, name: string, length_mm10: mm10, width_mm10: mm10): Part {

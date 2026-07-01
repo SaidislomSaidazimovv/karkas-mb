@@ -18,7 +18,14 @@ import type {
 } from "../contracts/structure.js";
 import { leafSections } from "../contracts/structure.js";
 import type { mm10 } from "../contracts/types.js";
-import { BOARD_MM10, CORNER_FILLER_W, sectionOfLine } from "./solve.js";
+import {
+  BOARD_MM10,
+  CORNER_FILLER_W,
+  GLASS_MM10,
+  GLAZED_FRAME_W,
+  GLAZED_MUNTIN_W,
+  sectionOfLine,
+} from "./solve.js";
 
 /** A panel placed in the cabinet: position + size in mm10 (block-local; X=width, Y=height, Z=depth). */
 export interface PanelPlacement {
@@ -165,6 +172,56 @@ function facadePlacement(block: Block, inst: Instance): PanelPlacement | null {
 }
 
 /**
+ * A glazed-GRID door positioned in the front opening (E2): the outer frame (2 stiles + 2 rails),
+ * `lights−1` muntins, and `lights` glass panes, all laid into the section's front face. Mirrors the
+ * geometry `glazedGridParts` emits (same Fw/Mw/pane split) so the render matches the cut list. Ids
+ * use the member base (a doubled frame member is ONE visual box, not its two glued boards). Returns
+ * `null` unless the instance is a glazed-grid facade; a door too small for its frame falls back to a
+ * single covering panel so the viewport never draws a negative box.
+ */
+function glazedGridPlacement(block: Block, inst: Instance): PanelPlacement[] | null {
+  const section = sectionById(block, inst.sectionId);
+  const component = componentById(block, inst.componentId);
+  if (!section || !component || component.role !== "facade" || !component.glazedGrid) return null;
+
+  const s = section.box;
+  const idBase = `${block.id}__inst_${inst.id}`;
+  const x0 = block.box.x + s.x;
+  const y0 = block.box.y + s.y;
+  const zf = block.box.z + s.z; // front face
+  const Fw = GLAZED_FRAME_W;
+  const Mw = GLAZED_MUNTIN_W;
+  const n = Math.max(1, Math.round(component.glazedGrid.lights));
+  const innerW = s.w - 2 * Fw;
+  const innerH = s.h - 2 * Fw;
+
+  if (innerW <= 0 || innerH <= 0) {
+    // Opening too small for a frame → render as one door panel (matches nothing to sub-divide).
+    return [place(idBase, component.name, x0, y0, zf, s.w, s.h, B)];
+  }
+
+  const out: PanelPlacement[] = [
+    place(`${idBase}__stile_l`, `${component.name} · стойка Л`, x0, y0, zf, Fw, s.h, B),
+    place(`${idBase}__stile_r`, `${component.name} · стойка П`, x0 + s.w - Fw, y0, zf, Fw, s.h, B),
+    place(`${idBase}__rail_b`, `${component.name} · рама низ`, x0 + Fw, y0, zf, innerW, Fw, B),
+    place(`${idBase}__rail_t`, `${component.name} · рама верх`, x0 + Fw, y0 + s.h - Fw, zf, innerW, Fw, B),
+  ];
+
+  // Interior: panes stacked bottom→top, muntins between them (same order as glazedGridParts).
+  const paneH = Math.floor((innerH - (n - 1) * Mw) / n);
+  let cursor = y0 + Fw;
+  for (let i = 0; i < n; i += 1) {
+    out.push(place(`${idBase}__glass_${i}`, `${component.name} · стекло ${i + 1}`, x0 + Fw, cursor, zf, innerW, paneH, GLASS_MM10));
+    cursor += paneH;
+    if (i < n - 1) {
+      out.push(place(`${idBase}__muntin_${i}`, `${component.name} · раскладка ${i + 1}`, x0 + Fw, cursor, zf, innerW, Mw, B));
+      cursor += Mw;
+    }
+  }
+  return out;
+}
+
+/**
  * Positioned panels for the 3D viewport. Same panels (and ids) as `solveStructure`, but
  * each carries its place in the cabinet so the editor can render the assembled box.
  */
@@ -174,6 +231,11 @@ export function solveLayout(model: StructuralModel): PanelPlacement[] {
     out.push(...(block.footprint ? lCornerLayout(block) : carcass(block)));
     for (const line of block.lines) out.push(dividerPlacement(block, line));
     for (const inst of block.instances) {
+      const grid = glazedGridPlacement(block, inst); // E2: multi-panel glazed-grid door
+      if (grid) {
+        out.push(...grid);
+        continue;
+      }
       const p = shelfPlacement(block, inst) ?? facadePlacement(block, inst);
       if (p) out.push(p);
     }
