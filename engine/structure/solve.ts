@@ -178,10 +178,26 @@ function lCornerParts(block: Block): Part[] {
   ];
 }
 
-/** A vertical divider (axis "x") stands between top and bottom, full depth. */
+/** The section a divider `Line` splits — the one whose `dividers` list holds its id (walks ALL
+ *  sections, not just leaves, since a divided section is a non-leaf). Falls back to null. */
+export function sectionOfLine(block: Block, lineId: string): Section | null {
+  for (const zone of block.zones) {
+    let hit: Section | null = null;
+    const walk = (s: Section): void => {
+      if (!hit && s.dividers.includes(lineId)) hit = s;
+      s.children.forEach(walk);
+    };
+    walk(zone.root);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** A vertical divider (axis "x") stands between top and bottom, spanning the depth of the SECTION
+ *  it divides (leg-aware for L-blocks) — not the block's bounding box. */
 function dividerPart(block: Block, line: Line): Part {
-  const { h, d } = block.box;
-  return panel(`${block.id}__div_${line.id}`, "Перегородка", h - 2 * BOARD_MM10, d, frontBand());
+  const box = sectionOfLine(block, line.id)?.box ?? block.box;
+  return panel(`${block.id}__div_${line.id}`, "Перегородка", box.h - 2 * BOARD_MM10, box.d, frontBand());
 }
 
 function sectionById(block: Block, sectionId: string): Section | null {

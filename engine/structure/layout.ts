@@ -18,7 +18,7 @@ import type {
 } from "../contracts/structure.js";
 import { leafSections } from "../contracts/structure.js";
 import type { mm10 } from "../contracts/types.js";
-import { BOARD_MM10, CORNER_FILLER_W } from "./solve.js";
+import { BOARD_MM10, CORNER_FILLER_W, sectionOfLine } from "./solve.js";
 
 /** A panel placed in the cabinet: position + size in mm10 (block-local; X=width, Y=height, Z=depth). */
 export interface PanelPlacement {
@@ -102,11 +102,16 @@ function lCornerLayout(block: Block): PanelPlacement[] {
   ];
 }
 
-/** Vertical divider (axis "x") at its block-local position, between top and bottom. */
+/** Vertical divider (axis "x") positioned inside the SECTION it divides (leg-aware for L-blocks):
+ *  its depth + z-origin follow that section, not the block's bounding box. */
 function dividerPlacement(block: Block, line: Line): PanelPlacement {
-  const { x, y, z, h, d } = block.box;
-  const px = x + line.position_mm10;
-  return place(`${block.id}__div_${line.id}`, "Перегородка", px - B / 2, y + B, z, B, h - 2 * B, d);
+  const box = sectionOfLine(block, line.id)?.box;
+  const sy = box ? box.y : 0;
+  const sz = box ? box.z : 0;
+  const sh = box ? box.h : block.box.h;
+  const sd = box ? box.d : block.box.d;
+  const px = block.box.x + line.position_mm10;
+  return place(`${block.id}__div_${line.id}`, "Перегородка", px - B / 2, block.box.y + sy + B, block.box.z + sz, B, sh - 2 * B, sd);
 }
 
 function sectionById(block: Block, sectionId: string): Section | null {
