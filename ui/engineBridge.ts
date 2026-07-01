@@ -9,7 +9,7 @@
 // ---- runtime ----
 export { solveStructure, BOARD_MM10 } from "./_engine/structure/solve";
 export { solveLayout } from "./_engine/structure/layout";
-export { buildDemoModel } from "./_engine/structure/demoModel";
+export { buildDemoModel, buildLCornerModel } from "./_engine/structure/demoModel";
 export { solvePreview, solveFull } from "./_engine/index";
 // E1: manufacturing path — live model → drilled parts → byte-exact SWJ008 cut file. Metro-safe
 // (the hardware catalog is a `.ts` data module, no JSON import-attribute).
@@ -40,6 +40,8 @@ export {
   resizeBlockDepth,
   resizeBlockWidth,
   dissolveGroup,
+  setBandTransition,
+  setJunction,
 } from "./_engine/structure/operations";
 export { countExceptions, leafSections } from "./_engine/contracts/structure";
 

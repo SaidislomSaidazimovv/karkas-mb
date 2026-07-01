@@ -27,6 +27,7 @@
 
 import type {
   Axis,
+  BandTransition,
   Block,
   BlockId,
   Box3D,
@@ -34,6 +35,7 @@ import type {
   ComponentId,
   Instance,
   InstanceId,
+  Junction3D,
   Line,
   LineId,
   Scope,
@@ -887,4 +889,61 @@ export function resizeBlockWidth(
   newWidth_mm10: mm10,
 ): StructuralModel {
   return resizeBlockAxis(model, blockId, "x", newWidth_mm10);
+}
+
+// ===========================================================================
+// 5 · setBandTransition / setJunction — the edit seams for #39 / #40
+// ===========================================================================
+
+/**
+ * Set a component's corner band-transition (#39, E4). The #39 control writes butt / mitre / overlap
+ * here; `bandCorners` reads it. No-op (same model ref) when the value is unchanged or the component
+ * is unknown (the UI guards selection, so this stays silent rather than throwing).
+ */
+export function setBandTransition(
+  model: StructuralModel,
+  componentId: ComponentId,
+  transition: BandTransition,
+): StructuralModel {
+  let changed = false;
+  const blocks = model.blocks.map((block) => {
+    const idx = block.components.findIndex((c) => c.id === componentId);
+    if (idx === -1) return block;
+    if (block.components[idx]!.bandTransition === transition) return block; // no-op
+    changed = true;
+    const components = block.components.map((c, i) =>
+      i === idx ? { ...c, bandTransition: transition } : c,
+    );
+    return { ...block, components };
+  });
+  return changed ? { ...model, blocks } : model;
+}
+
+/**
+ * Set (or clear, with `null`) an instance's off-plane junction offset (#40, E5). The junction value
+ * editor writes the three values here; solveLayout pushes the placement proud by the shadow-gap.
+ * No-op when unchanged. Throws only if the instance is unknown (same policy as detach).
+ */
+export function setJunction(
+  model: StructuralModel,
+  instanceId: InstanceId,
+  junction: Junction3D | null,
+): StructuralModel {
+  return mapInstance(model, instanceId, (inst) => {
+    if (junction === null) {
+      if (!inst.junction) return inst; // already flush → no-op
+      const { junction: _drop, ...rest } = inst;
+      return rest;
+    }
+    const j = inst.junction;
+    if (
+      j &&
+      j.oversail_x_mm10 === junction.oversail_x_mm10 &&
+      j.stepBack_y_mm10 === junction.stepBack_y_mm10 &&
+      j.shadowGap_z_mm10 === junction.shadowGap_z_mm10
+    ) {
+      return inst; // unchanged → no-op
+    }
+    return { ...inst, junction };
+  });
 }

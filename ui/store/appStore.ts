@@ -15,6 +15,7 @@ import { create } from "zustand";
 import {
   addInstance,
   buildDemoModel,
+  buildLCornerModel,
   countExceptions,
   detachInstance,
   checkHingeFit,
@@ -29,16 +30,20 @@ import {
   resizeBlockDepth,
   resizeBlockWidth,
   selectByTap,
+  setBandTransition as engineSetBandTransition,
+  setJunction as engineSetJunction,
   solveLayout,
   solvePreview,
   solveStructure,
 } from "../engineBridge";
 import type {
+  BandTransition,
   Block,
   ComponentId,
   DivideMode,
   EngineSelection,
   HingeFitFinding,
+  Junction3D,
   MotionFinding,
   StabilityFinding,
   InstanceId,
@@ -201,6 +206,12 @@ export interface AppState {
   /** "Each differs" (E10): dissolve the selected multi-member group into independent group-of-1s,
    *  so an edit to one member no longer travels to its siblings (L0, v3:67). No-op if not a group. */
   eachDiffers(componentId: ComponentId): void;
+  /** #39: set a component's corner band-transition (butt/mitre/overlap). */
+  setBandTransition(componentId: ComponentId, transition: BandTransition): void;
+  /** #40: set (or clear with null) an instance's off-plane junction offset. */
+  setJunction(instanceId: InstanceId, junction: Junction3D | null): void;
+  /** Start a fresh L-corner project (blocker #1) — swaps the model, resets history. */
+  loadLCorner(): void;
   undo(): void;
   redo(): void;
   /** E1: drill the live model, run the safety gate, and emit a byte-exact SWJ008 cut file.
@@ -386,6 +397,29 @@ export const useApp = create<AppState>((set, get) => ({
     } catch {
       /* unknown component — ignore; UI guards */
     }
+  },
+
+  setBandTransition(componentId, transition) {
+    const m = get().model;
+    if (!m) return;
+    const next = engineSetBandTransition(m, componentId, transition);
+    if (next === m) return; // unchanged / unknown → no-op
+    applyEdit(get, set, next, true);
+  },
+  setJunction(instanceId, junction) {
+    const m = get().model;
+    if (!m) return;
+    try {
+      const next = engineSetJunction(m, instanceId, junction);
+      if (next === m) return;
+      applyEdit(get, set, next, true);
+    } catch {
+      /* unknown instance — ignore; UI guards selection */
+    }
+  },
+  loadLCorner() {
+    const m = buildLCornerModel();
+    set({ model: m, past: [], future: [], selection: NO_SELECTION, ...derive(m) });
   },
 
   exportCutFile() {
