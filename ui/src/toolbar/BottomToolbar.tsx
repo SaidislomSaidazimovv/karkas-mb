@@ -55,7 +55,7 @@ export function BottomToolbar() {
   const runBuildVerb = (key: string) => {
     if (key === "add") return open("add");
     if (key === "resize") return hasSel ? open("resize") : flashHint("Коснитесь детали, потом «Разм.»");
-    if (key === "divide") return selection.sectionId ? open("divide") : flashHint("Выберите секцию, потом «Дел.»");
+    if (key === "divide") return hasSel ? open("divide") : flashHint("Коснитесь детали, потом «Дел.»");
     if (key === "move") return hasSel ? close() : flashHint("Двиг.: перетаскивайте деталь на модели");
     close(); // «Выбор» → clean slate (tap parts on the model to select)
   };

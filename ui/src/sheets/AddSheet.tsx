@@ -6,7 +6,7 @@
 //   shelf / shelf+{doubled} / door / divider all create real parts (E11 addInstance), undo-able.
 //   A leaf needs a target leaf-section (selection.sectionId); without one the row is disabled.
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { useApp, type AddKind } from "../../store/appStore";
+import { useApp, targetSectionId, type AddKind } from "../../store/appStore";
 import { usePanelUi } from "./panelUi";
 import { C, FONT } from "../../theme";
 import { Grab, MenuRow, sheetBase } from "./controls";
@@ -52,7 +52,11 @@ export function AddSheet() {
   const drillBack = usePanelUi((s) => s.drillBack);
   const closeAdd = usePanelUi((s) => s.close);
   const addPart = useApp((s) => s.addPart);
-  const sectionId = useApp((s) => s.selection.sectionId);
+  // Target the tapped leaf section, or a sensible default (a wall tap has none) — so «Добавить»
+  // always has somewhere to put the new part instead of being permanently disabled.
+  const model = useApp((s) => s.model);
+  const selection = useApp((s) => s.selection);
+  const sectionId = targetSectionId(model, selection);
 
   const nodeId = drill.length ? drill[drill.length - 1]! : "root";
   const node = NODES[nodeId] ?? NODES.root!;

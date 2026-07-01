@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { useApp } from "../../store/appStore";
+import { useApp, targetSectionId } from "../../store/appStore";
 import { usePanelUi } from "../sheets/panelUi";
 import { C, FONT, R } from "../../theme";
 import { CanvasScene } from "./CanvasScene";
@@ -102,9 +102,11 @@ export function CanvasView() {
     // Structure-level: set the owning block's absolute width (x) / depth (z). mm → mm10.
     if (selPart) resize(selPart, axis, Math.round(newMm * 10));
   };
+  // The section Build verbs (divide/add) act on: the tapped leaf if any, else a sensible default
+  // (a wall tap has no section — see targetSectionId). Lets «Разделить»/«Добавить» work from any tap.
+  const divTarget = targetSectionId(model, selection);
   const applyDivide = (opts: DivideOpts) => {
-    // Real split: selection carries the leaf sectionId → engine divide → model/scene re-derive.
-    if (selection.sectionId) divide(selection.sectionId, opts);
+    if (divTarget) divide(divTarget, opts);
     closeOverlay();
   };
   const resetCam = () => controlsRef.current?.reset();
@@ -261,8 +263,8 @@ export function CanvasView() {
           </View>
         )}
 
-        {/* Divide (Build mode, real split needs a leaf section, no sheet open). */}
-        {hasSel && mode === "build" && selection.sectionId && canvasClear && (
+        {/* Divide (Build mode — acts on the tapped section or the default leaf; no sheet open). */}
+        {hasSel && mode === "build" && divTarget && canvasClear && (
           <Pressable style={styles.divBtn} onPress={() => openOverlay("divide")}>
             <Text style={styles.divBtnT}>Разделить</Text>
           </Pressable>
@@ -305,7 +307,7 @@ export function CanvasView() {
         )}
 
         {/* Divide modes sheet — opens over the HUD when «Разделить» is tapped. */}
-        {divideOpen && hasSel && mode === "build" && selection.sectionId && (
+        {divideOpen && hasSel && mode === "build" && divTarget && (
           <DivideSheet onApply={applyDivide} onClose={() => closeOverlay()} />
         )}
 

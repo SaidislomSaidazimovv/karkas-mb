@@ -24,6 +24,7 @@ import {
   dissolveGroup,
   divideSection,
   exportModelToSWJ008,
+  leafSections,
   mergeSections,
   moveLine as engineMoveLine,
   reattachInstance,
@@ -177,6 +178,27 @@ function reselect(model: StructuralModel, current: Selection): Selection {
   // stays open across steps (the same partId persists through a structural resize/reflow).
   if (current.isUnique && current.instanceIds.length === 0) return current;
   return NO_SELECTION;
+}
+
+/** A sensible default leaf section to target when the current selection carries none. Tapping the
+ *  3D only ever hits an OUTER carcass panel (the walls occlude the interior), so a wall selection
+ *  has no sectionId and «Разделить»/«Добавить» would have nothing to act on. Falling back to the
+ *  first leaf section of the first block lets those verbs always do something visible (undo-able),
+ *  instead of feeling dead. (A precise interior-section picker in the 3D is a later improvement.) */
+export function firstLeafSectionId(model: StructuralModel | null): SectionId | undefined {
+  if (!model) return undefined;
+  for (const b of model.blocks) {
+    for (const z of b.zones) {
+      const leaves = leafSections(z.root);
+      if (leaves.length) return leaves[0]!.id;
+    }
+  }
+  return undefined;
+}
+
+/** The section a Build verb (divide/add) should act on: the selected leaf if any, else the default. */
+export function targetSectionId(model: StructuralModel | null, sel: Selection): SectionId | undefined {
+  return sel.sectionId ?? firstLeafSectionId(model);
 }
 
 // --- store -----------------------------------------------------------------
