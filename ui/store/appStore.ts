@@ -122,6 +122,38 @@ function toSelection(model: StructuralModel, sel: EngineSelection | null): Selec
   };
 }
 
+/**
+ * Resolve a tapped scene part id to its owning INSTANCE's component selection. The engine's
+ * selectByTap matches only `component.partIds`, which are empty in our live models (they're filled
+ * by the solver, not the model selectByTap sees) — so instance taps never resolved to a component
+ * and everything fell back to a synthetic, componentId-less selection. That broke Frame/Hardware/#38
+ * (which need componentId) and glazed-grid selection (its rendered sub-panels — `__inst_<id>__stile_l`
+ * etc. — never matched). Here we read the instance id straight out of the part id (`…__inst_<id>[…]`)
+ * and build a proper group-first selection with componentId + sectionId. Returns null for a part that
+ * isn't an instance (carcass wall / divider).
+ */
+function resolveInstanceSelection(model: StructuralModel, partId: PartId): Selection | null {
+  const after = partId.split("__inst_")[1];
+  if (!after) return null;
+  const instId = after.split("__")[0]!; // instance id (may contain single underscores)
+  for (const block of model.blocks) {
+    const inst = block.instances.find((i) => i.id === instId);
+    if (!inst) continue;
+    const siblings = block.instances.filter((i) => i.componentId === inst.componentId && i.link !== "detached");
+    const isUnique = siblings.length <= 1;
+    return {
+      kind: isUnique ? "single" : "group",
+      componentId: inst.componentId,
+      sectionId: inst.sectionId,
+      instanceIds: siblings.map((i) => i.id),
+      partIds: siblings.length ? siblings.map((i) => instancePartId(block.id, i.id)) : [partId],
+      isUnique,
+      exceptions: countExceptions(block),
+    };
+  }
+  return null;
+}
+
 /** Rough board-area price so the ticker shows a believable number (refined later). */
 function estimatePrice(parts: readonly Part[]): number {
   let m2 = 0;
@@ -184,6 +216,10 @@ function reselect(model: StructuralModel, current: Selection): Selection {
   if (!pid) return NO_SELECTION;
   const eng = selectByTap(model, pid);
   if (eng) return toSelection(model, eng);
+  // Instance part (component.partIds are empty for selectByTap) → re-resolve from the id so a
+  // component selection survives an edit instead of collapsing.
+  const inst = resolveInstanceSelection(model, pid);
+  if (inst) return inst;
   // Carcass/structural panel (side/top/bottom/back) — the engine has no instance for it, so
   // selectByTap returns null. Without this the synthetic single-selection would collapse to
   // NO_SELECTION after the FIRST edit, closing the resize card mid-use. Preserve it so the sheet
@@ -328,6 +364,13 @@ export const useApp = create<AppState>((set, get) => ({
     const eng = selectByTap(m, partId);
     if (eng) {
       set({ selection: toSelection(m, eng) });
+      return;
+    }
+    // Instance part (shelf / door / vitrine) — selectByTap can't resolve it (empty component.partIds),
+    // so read the owning instance from the id → a real component selection (componentId + sectionId).
+    const instSel = resolveInstanceSelection(m, partId);
+    if (instSel) {
+      set({ selection: instSel });
       return;
     }
     // Carcass/structural panels (side/top/bottom/back) are not component instances, so the engine
