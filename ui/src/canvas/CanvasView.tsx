@@ -15,8 +15,10 @@ import { C, FONT, R } from "../../theme";
 import { CanvasScene } from "./CanvasScene";
 import { DivideSheet } from "./DivideSheet";
 import { ResizeSheet } from "./ResizeSheet";
+import { MoveSheet } from "./MoveSheet";
 import { DEMO_PREVIEW, layoutToScene, previewToScene, sceneDimsMm, type Orbit } from "./cabinet";
 import type { DivideOpts } from "../../store/appStore";
+import type { Scope } from "../../engineBridge";
 
 const AZ_STEP = 0.05; // rad per tick — yaw
 const POL_STEP = 0.04; // rad per tick — pitch
@@ -36,6 +38,7 @@ export function CanvasView() {
   const clearSelection = useApp((s) => s.clearSelection);
   const resize = useApp((s) => s.resize);
   const divide = useApp((s) => s.divide);
+  const moveLine = useApp((s) => s.moveLine);
   const toggleView = useApp((s) => s.toggleView);
   const undo = useApp((s) => s.undo);
   const redo = useApp((s) => s.redo);
@@ -49,6 +52,11 @@ export function CanvasView() {
   const [orbit, setOrbit] = useState<Orbit>([0.5, 0.6]);
   const [divideOpen, setDivideOpen] = useState(false);
   const [resizeOpen, setResizeOpen] = useState(false);
+  // Divider selection is UI-local: engine selectByTap resolves only component (instance) parts,
+  // NOT divider parts (`…__div_<lineId>`), so we capture the tapped divider here to drive moveLine.
+  const [moveDivId, setMoveDivId] = useState<string | null>(null);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const dividerSel = moveDivId !== null;
 
   const hasSel = selection.kind !== "none";
   const selPart = selection.partIds[0];
@@ -79,12 +87,33 @@ export function CanvasView() {
   const onOrbitDelta = (dPol: number, dAz: number) =>
     setOrbit(([p, a]) => [clamp(p + dPol, POL_MIN, POL_MAX), a + dAz]);
 
+  // Route taps: a divider becomes the UI-local move target; anything else is a normal selection.
+  const handleTap = (id: string) => {
+    if (id.includes("__div_")) {
+      setMoveDivId(id);
+      tapPart(id); // engine returns null for dividers → clears the instance-selection (exclusive)
+    } else {
+      setMoveDivId(null);
+      setMoveOpen(false);
+      tapPart(id);
+    }
+  };
+  const applyMove = (delta_mm10: number, scope: Scope) => {
+    const lineId = moveDivId?.split("__div_")[1];
+    if (lineId) moveLine(lineId, delta_mm10, scope); // relative nudge; sections reflow, undo-able
+  };
+  const deselectAll = () => {
+    clearSelection();
+    setMoveDivId(null);
+    setMoveOpen(false);
+  };
+
   return (
     <View style={styles.canvas}>
       <CanvasScene
         scene={scene}
-        selectedIds={selection.partIds}
-        onTapPart={tapPart}
+        selectedIds={moveDivId ? [moveDivId] : selection.partIds}
+        onTapPart={handleTap}
         orbit={orbit}
         lenses={view}
         hiddenIds={hiddenIds}
@@ -104,6 +133,19 @@ export function CanvasView() {
                 ? "своя деталь"
                 : `${selection.partIds.length} ${plural(selection.partIds.length)} выделено`}
             </Text>
+          </View>
+        )}
+
+        {/* Divider selected (UI-local) — chip + a single ↕ move handle. */}
+        {dividerSel && (
+          <View style={styles.chip}>
+            <Text style={styles.chipT}>Перегородка</Text>
+            <Text style={styles.chipS}>сдвиг разделителя</Text>
+          </View>
+        )}
+        {dividerSel && (
+          <View style={styles.handles} pointerEvents="box-none">
+            <Handle glyph="↕" onPress={() => setMoveOpen(true)} />
           </View>
         )}
 
@@ -144,7 +186,7 @@ export function CanvasView() {
         <View style={styles.hud} pointerEvents="box-none">
           <View style={styles.hudCluster}>
             <HudBtn glyph="◰" onPress={() => toggleView("geometry")} />
-            <HudBtn glyph="⊘" onPress={clearSelection} dark />
+            <HudBtn glyph="⊘" onPress={deselectAll} dark />
           </View>
 
           {/* Joystick — press-and-hold to orbit the camera around the cabinet. */}
@@ -192,6 +234,11 @@ export function CanvasView() {
             onResize={applyResize}
             onClose={() => setResizeOpen(false)}
           />
+        )}
+
+        {/* Move sheet — opens from the divider's ↕ handle; nudges the line with a scope. */}
+        {moveOpen && dividerSel && (
+          <MoveSheet onMove={applyMove} onClose={() => setMoveOpen(false)} />
         )}
       </View>
     </View>
