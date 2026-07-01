@@ -29,6 +29,9 @@ export { buildDemoModel } from "./structure/demoModel.js";
 export { solveLayout } from "./structure/layout.js";
 export type { PanelPlacement } from "./structure/layout.js";
 export { exportSWJ008 } from "./postprocessors/swj008.js";
+// E1: the manufacturing path — live structural model → drilled parts → byte-exact SWJ008 cut
+// file. Metro-safe now that the hardware catalog is a `.ts` data module (no JSON import-attribute).
+export { solveModelToParts, exportModelToSWJ008 } from "./cnc.js";
 export { parseSWJ008, parseSWJ008Document } from "./postprocessors/swj008Parse.js";
 export { canonicalizeParts, canonicalizePart } from "./core/canonical.js";
 export type {

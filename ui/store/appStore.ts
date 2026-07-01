@@ -18,6 +18,7 @@ import {
   countExceptions,
   detachInstance,
   divideSection,
+  exportModelToSWJ008,
   mergeSections,
   moveLine as engineMoveLine,
   reattachInstance,
@@ -180,6 +181,10 @@ export interface AppState {
   merge(sectionIds: readonly SectionId[]): void;
   undo(): void;
   redo(): void;
+  /** E1: drill the live model, run the safety gate, and emit a byte-exact SWJ008 cut file.
+   *  Pure read (no state change) — the UI (U1 export button) triggers the download / share.
+   *  Returns the failing gate codes instead of the file when validation blocks the export. */
+  exportCutFile(): { ok: true; text: string } | { ok: false; error: string };
 }
 
 const HISTORY_CAP = 50;
@@ -331,5 +336,15 @@ export const useApp = create<AppState>((set, get) => ({
       selection: NO_SELECTION,
       ...derive(nx),
     });
+  },
+
+  exportCutFile() {
+    const m = get().model;
+    if (!m) return { ok: false, error: "NO_MODEL" };
+    try {
+      return { ok: true, text: exportModelToSWJ008(m) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   },
 }));
