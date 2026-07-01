@@ -17,6 +17,9 @@ export { solveModelToParts, exportModelToSWJ008 } from "./_engine/cnc";
 // E7: L5 stability check (non-blocking ⚠). The store derives it; U13 renders the badge.
 export { checkStability, SPAN_LIMIT_16MM_MM10 } from "./_engine/structure/stability";
 export type { StabilityFinding, StabilityLevel } from "./_engine/structure/stability";
+// E4: corner band-transition (#39). U9 (Frame body) sets Component.bandTransition; cut-list reads this.
+export { bandCorners, resolveBandTransition } from "./_engine/structure/banding";
+export type { BandCorner } from "./_engine/structure/banding";
 export {
   divideSection,
   mergeSections,
@@ -42,6 +45,7 @@ export type {
   Row,
   Scope,
   PanelRole,
+  BandTransition,
   BlockId,
   ZoneId,
   SectionId,

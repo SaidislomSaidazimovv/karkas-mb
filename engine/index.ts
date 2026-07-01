@@ -36,6 +36,9 @@ export { solveModelToParts, exportModelToSWJ008 } from "./cnc.js";
 // export gate by design — it warns, never blocks (CONSTRUCTION_FRAME_v3 L5).
 export { checkStability, SPAN_LIMIT_16MM_MM10 } from "./structure/stability.js";
 export type { StabilityFinding, StabilityLevel } from "./structure/stability.js";
+// E4: corner band-transition model (#39) — cosmetic + cut-list, not in SWJ008.
+export { bandCorners, resolveBandTransition } from "./structure/banding.js";
+export type { BandCorner, Face } from "./structure/banding.js";
 export { parseSWJ008, parseSWJ008Document } from "./postprocessors/swj008Parse.js";
 export { canonicalizeParts, canonicalizePart } from "./core/canonical.js";
 export type {

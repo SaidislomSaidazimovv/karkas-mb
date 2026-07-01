@@ -215,7 +215,18 @@ export interface Component {
    * v3-authoritative: the requirement is in v3 Piece 3; this model design is P's (docs don't spec it).
    */
   readonly mount?: { readonly front_mm10: mm10; readonly y_mm10: mm10 };
+  /**
+   * Corner band-transition (#39, CONSTRUCTION_FRAME_v3:135/189): how this panel's edge bands meet
+   * at its corners — where a 32mm band meets a 16mm band. `"butt"` (default): the length-edge band
+   * runs full, the width-edge bands butt into it (v3 line 189). `"overlap"`: the width-edge band
+   * runs over instead. `"mitre"`: both cut 45° (the 45° geometry is V2-deferred; the value is
+   * modelled now). Cosmetic + cut-list precision; NOT expressible in SWJ008. Absent = "butt".
+   */
+  readonly bandTransition?: BandTransition;
 }
+
+/** How two edge bands meet at a panel corner (#39). "mitre" 45° geometry is V2-deferred. */
+export type BandTransition = "butt" | "mitre" | "overlap";
 
 /** Whether an instance follows its Component definition or overrides it. */
 export type InstanceLink = "linked" | "detached";
