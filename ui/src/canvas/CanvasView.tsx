@@ -115,6 +115,25 @@ export function CanvasView() {
   };
   const resetCam = () => controlsRef.current?.reset();
 
+  // The WHOLE joystick circle is a drag pad: dragging anywhere in it orbits the camera (dx→yaw,
+  // dy→pitch). A tap still falls through to the arrows (discrete nudge). Incremental deltas = smooth.
+  const joyLast = useRef({ x: 0, y: 0 });
+  const joyPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false, // let a tap reach the arrows
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) + Math.abs(g.dy) > 2, // a drag claims it
+      onPanResponderGrant: () => {
+        joyLast.current = { x: 0, y: 0 };
+      },
+      onPanResponderMove: (_e, g) => {
+        const dAz = (g.dx - joyLast.current.x) * 0.014;
+        const dPol = -(g.dy - joyLast.current.y) * 0.014;
+        joyLast.current = { x: g.dx, y: g.dy };
+        nudgeCam(dPol, dAz);
+      },
+    }),
+  ).current;
+
   // Route taps: merge-mode collects sections; a divider becomes the move target; else a selection.
   const handleTap = (id: string) => {
     if (mergeMode) {
@@ -287,14 +306,14 @@ export function CanvasView() {
             <HudBtn glyph="⊘" onPress={deselectAll} dark />
           </View>
 
-          {/* Joystick — hold an arrow to orbit, drag the centre knob to orbit smoothly, tap to reset.
-              (Mouse-drag on the model + wheel/pinch zoom are handled by OrbitControls in the scene.) */}
-          <View style={styles.joy} pointerEvents="box-none">
+          {/* Joystick — DRAG anywhere on the circle (incl. the knob) to orbit smoothly; tap an arrow
+              for a discrete nudge. (Dragging the 3D model + wheel/pinch zoom = OrbitControls.) */}
+          <View style={styles.joy} {...joyPan.panHandlers}>
             <JoyArrow style={styles.joyUp} glyph="▲" onChange={() => nudgeCam(-POL_STEP, 0)} />
             <JoyArrow style={styles.joyDn} glyph="▼" onChange={() => nudgeCam(POL_STEP, 0)} />
             <JoyArrow style={styles.joyLf} glyph="◀" onChange={() => nudgeCam(0, -AZ_STEP)} />
             <JoyArrow style={styles.joyRt} glyph="▶" onChange={() => nudgeCam(0, AZ_STEP)} />
-            <JoyKnob onOrbit={nudgeCam} onReset={resetCam} />
+            <View style={styles.knob} pointerEvents="none" />
           </View>
 
           {/* Undo/redo — wired to the store history; disabled when the stack is empty. */}
@@ -383,31 +402,6 @@ function JoyArrow({
       <Text style={styles.joyArT}>{glyph}</Text>
     </Pressable>
   );
-}
-
-/** Draggable joystick knob — press-and-drag orbits the camera smoothly (dx→azimuth, dy→pitch);
- *  a tap (no real drag) resets the view. Incremental deltas keep the orbit smooth. */
-function JoyKnob({ onOrbit, onReset }: { onOrbit: (dPol: number, dAz: number) => void; onReset: () => void }) {
-  const last = useRef({ x: 0, y: 0 });
-  const responder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        last.current = { x: 0, y: 0 };
-      },
-      onPanResponderMove: (_e, g) => {
-        const dAz = (g.dx - last.current.x) * 0.012; // horizontal drag → yaw
-        const dPol = -(g.dy - last.current.y) * 0.012; // vertical drag → pitch
-        last.current = { x: g.dx, y: g.dy };
-        onOrbit(dPol, dAz);
-      },
-      onPanResponderRelease: (_e, g) => {
-        if (Math.abs(g.dx) + Math.abs(g.dy) < 6) onReset(); // negligible move = a tap → reset view
-      },
-    }),
-  ).current;
-  return <View style={styles.knob} {...responder.panHandlers} />;
 }
 
 function Handle({ glyph, onPress }: { glyph: string; onPress: () => void }) {

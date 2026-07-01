@@ -135,7 +135,9 @@ export function CanvasScene({ scene, selectedIds, onTapPart, lenses, hiddenIds, 
                 receiveShadow
                 onClick={(e) => {
                   e.stopPropagation();
-                  onTapPart(b.id);
+                  // Ignore a click that was actually a drag (OrbitControls just orbited the camera);
+                  // only a real tap (pointer barely moved) selects the panel.
+                  if (e.delta < 5) onTapPart(b.id);
                 }}
               >
                 <boxGeometry args={b.size} />
