@@ -207,6 +207,14 @@ export interface Component {
    * (This creates the step; the step-aware MOUNTING resolution of parts under it is a follow-up.)
    */
   readonly partialDouble?: { readonly front_mm10: mm10 };
+  /**
+   * Step-aware mount (blocker #7, CONSTRUCTION_FRAME_v3 Piece 3): a vertical support (pedestal /
+   * blade) that stands UNDER a partially-doubled top. Its height resolves to the REAL underside
+   * plane it touches — shorter under the 32mm front strip, taller behind the 16mm step. `front_mm10`
+   * is the top's doubled strip; `y_mm10` is this mount's depth-position under the top.
+   * v3-authoritative: the requirement is in v3 Piece 3; this model design is P's (docs don't spec it).
+   */
+  readonly mount?: { readonly front_mm10: mm10; readonly y_mm10: mm10 };
 }
 
 /** Whether an instance follows its Component definition or overrides it. */

@@ -257,6 +257,12 @@ function instanceParts(block: Block, inst: Instance): Part[] {
   const section = sectionById(block, inst.sectionId);
   const component = componentById(block, inst.componentId);
   if (!section || !component) return [];
+  // Step-aware mount (#7): a vertical support whose height resolves to the real underside plane of
+  // the partially-doubled top above it — shorter under the 32mm front strip, taller behind the step.
+  if (component.mount) {
+    const clear = section.box.h - undersidePlaneAt(section.box.d, component.mount.front_mm10, component.mount.y_mm10);
+    return [panel(`${block.id}__inst_${inst.id}`, `${component.name} · опора`, clear, section.box.d, frontBand())];
+  }
   // First slice handles shelves; other roles return [] until their step.
   if (component.role === "internal_shelf") {
     const length = section.box.w - 2 * BOARD_MM10; // span between sides / dividers (X)
