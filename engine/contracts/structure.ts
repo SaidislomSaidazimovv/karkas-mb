@@ -238,6 +238,13 @@ export interface Component {
    * auto-checked by role, so nothing regresses).
    */
   readonly loadBearing?: boolean;
+  /**
+   * Per-edge kromka override (#39, CONSTRUCTION_FRAME_v3 §6 · Material→Кром.). Band thickness (mm10)
+   * for the panel's four perimeter faces `[front, back, left, right]` — `0` = bare edge, `10` = 1mm
+   * kromka. When present it REPLACES the role default (shelf = front only; facade = all four), so the
+   * user can band or bare any edge. Optional/additive — absent = the role default (nothing regresses).
+   */
+  readonly edgeBands?: readonly [mm10, mm10, mm10, mm10];
 }
 
 /** How two edge bands meet at a panel corner (#39). "mitre" 45° geometry is V2-deferred. */

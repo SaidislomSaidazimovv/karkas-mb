@@ -273,8 +273,9 @@ function instanceParts(block: Block, inst: Instance): Part[] {
   if (component.role === "internal_shelf") {
     const length = section.box.w - 2 * BOARD_MM10; // span between sides / dividers (X)
     const width = section.box.d; // depth (Y)
-    // Banded on the FRONT edge (Face 1 = edges[0] = the Y=Width depth-front edge) — see frontBand().
-    const base = panel(`${block.id}__inst_${inst.id}`, component.name, length, width, frontBand());
+    // Banded on the FRONT edge by default (Face 1 = edges[0]); a user #39 kromka override wins.
+    const edges = component.edgeBands ? [...component.edgeBands] as Part["edges"] : frontBand();
+    const base = panel(`${block.id}__inst_${inst.id}`, component.name, length, width, edges);
     if (component.partialDouble) return partialDoublePanels(base, component.partialDouble.front_mm10);
     return component.doubled ? doublePanel(base) : [base];
   }
@@ -286,7 +287,9 @@ function instanceParts(block: Block, inst: Instance): Part[] {
     if (component.glazedGrid) {
       return glazedGridParts(`${block.id}__inst_${inst.id}`, component.name, length, width, component.glazedGrid.lights);
     }
-    const base = panel(`${block.id}__inst_${inst.id}`, component.name, length, width, allBand());
+    // A facade is banded on all four visible edges by default; a user #39 kromka override wins.
+    const edges = component.edgeBands ? [...component.edgeBands] as Part["edges"] : allBand();
+    const base = panel(`${block.id}__inst_${inst.id}`, component.name, length, width, edges);
     return component.doubled ? doublePanel(base) : [base];
   }
   return [];

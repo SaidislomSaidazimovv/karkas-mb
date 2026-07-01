@@ -4,7 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { setBandTransition, setJunction, setLoadBearing } from "../engine/structure/operations.js";
+import { setBandTransition, setJunction, setLoadBearing, setEdgeBands } from "../engine/structure/operations.js";
+import { solveStructure } from "../engine/structure/solve.js";
 import type { Junction3D, StructuralModel } from "../engine/contracts/structure.js";
 
 function model(): StructuralModel {
@@ -79,5 +80,27 @@ describe("edit seams — setLoadBearing (L5)", () => {
     expect(setLoadBearing(base, "nope", true)).toBe(base);
     const on = setLoadBearing(base, "c", true);
     expect(setLoadBearing(on, "c", true)).toBe(on);
+  });
+});
+
+describe("edit seams — setEdgeBands (#39 kromka)", () => {
+  it("sets and clears a component's per-edge band override", () => {
+    const withE = setEdgeBands(model(), "c", [10, 0, 10, 0]);
+    expect(comp(withE).edgeBands).toEqual([10, 0, 10, 0]);
+    expect(comp(setEdgeBands(withE, "c", null)).edgeBands).toBeUndefined();
+  });
+
+  it("is a no-op when unchanged or the component is unknown", () => {
+    const base = model();
+    expect(setEdgeBands(base, "c", null)).toBe(base); // already absent
+    expect(setEdgeBands(base, "nope", [10, 0, 0, 0])).toBe(base);
+    const withE = setEdgeBands(base, "c", [10, 0, 0, 0]);
+    expect(setEdgeBands(withE, "c", [10, 0, 0, 0])).toBe(withE);
+  });
+
+  it("the solver applies the override to the emitted facade part (in place of the default)", () => {
+    const overridden = setEdgeBands(model(), "c", [10, 0, 10, 0]); // was all-banded (facade default)
+    const part = solveStructure(overridden).find((p) => p.id === "blk__inst_i1");
+    expect(part?.edges).toEqual([10, 0, 10, 0]);
   });
 });

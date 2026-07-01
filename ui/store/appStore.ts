@@ -34,6 +34,7 @@ import {
   setBandTransition as engineSetBandTransition,
   setJunction as engineSetJunction,
   setLoadBearing as engineSetLoadBearing,
+  setEdgeBands as engineSetEdgeBands,
   solveLayout,
   solvePreview,
   solveStructure,
@@ -313,6 +314,8 @@ export interface AppState {
   setJunction(instanceId: InstanceId, junction: Junction3D | null): void;
   /** L5: declare (or clear) a component/type as load-bearing → stability ⚠ if it's over-span. */
   declareLoadBearing(componentId: ComponentId, value: boolean): void;
+  /** #39: set (or clear with null) a component's per-edge kromka override [front,back,left,right] (mm10). */
+  setEdgeBands(componentId: ComponentId, edges: readonly [number, number, number, number] | null): void;
   /** Start a fresh L-corner project (blocker #1) — swaps the model, resets history. */
   loadLCorner(): void;
   /** Start a fresh straight (rectangular) project — the inverse of loadLCorner (round-trip). */
@@ -557,6 +560,15 @@ export const useApp = create<AppState>((set, get) => ({
     const m = get().model;
     if (!m) return;
     const next = engineSetLoadBearing(m, componentId, value);
+    if (next === m) return;
+    applyEdit(get, set, next, true);
+  },
+  setEdgeBands(componentId, edges) {
+    // #39: per-edge kromka override on a component → solver re-emits its part edges → export reflects
+    // it. `null` clears back to the role default. No-op (same ref) when unchanged / unknown.
+    const m = get().model;
+    if (!m) return;
+    const next = engineSetEdgeBands(m, componentId, edges);
     if (next === m) return;
     applyEdit(get, set, next, true);
   },

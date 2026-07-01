@@ -7,7 +7,7 @@
 //   node scripts/build-engine.mjs   (tsc -p ../engine/tsconfig.build.json → vendor ui/_engine)
 
 // ---- runtime ----
-export { solveStructure, BOARD_MM10 } from "./_engine/structure/solve";
+export { solveStructure, BOARD_MM10, EDGE_BAND_MM10 } from "./_engine/structure/solve";
 export { solveLayout } from "./_engine/structure/layout";
 export { buildDemoModel, buildLCornerModel } from "./_engine/structure/demoModel";
 export { solvePreview, solveFull } from "./_engine/index";
@@ -43,6 +43,7 @@ export {
   setBandTransition,
   setJunction,
   setLoadBearing,
+  setEdgeBands,
 } from "./_engine/structure/operations";
 export { countExceptions, leafSections } from "./_engine/contracts/structure";
 

@@ -15,6 +15,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp, loadBearingTargets, anyLoadBearing } from "../../store/appStore";
+import { EDGE_BAND_MM10 } from "../../engineBridge";
 import type { BandTransition, Junction3D, PanelPlacement, StructuralModel } from "../../engineBridge";
 import { C, FONT } from "../../theme";
 import { usePanelUi } from "./panelUi";
@@ -51,6 +52,32 @@ function componentBand(model: StructuralModel | null, componentId?: string): Ban
   return undefined;
 }
 
+/** #39: the selected component's EFFECTIVE per-edge kromka (its override, else the role default). */
+function componentEffectiveEdges(model: StructuralModel | null, componentId?: string): [number, number, number, number] {
+  if (!model || !componentId) return [0, 0, 0, 0];
+  for (const b of model.blocks) {
+    const c = b.components.find((x) => x.id === componentId);
+    if (!c) continue;
+    if (c.edgeBands) return [c.edgeBands[0]!, c.edgeBands[1]!, c.edgeBands[2]!, c.edgeBands[3]!];
+    if (c.role === "facade") return [EDGE_BAND_MM10, EDGE_BAND_MM10, EDGE_BAND_MM10, EDGE_BAND_MM10];
+    if (c.role === "internal_shelf") return [EDGE_BAND_MM10, 0, 0, 0]; // front only
+    return [0, 0, 0, 0];
+  }
+  return [0, 0, 0, 0];
+}
+
+/** Part.edges [front,back,left,right] (mm10) → the t/b/l/r kromka UI (banded → "16", bare → "none"). */
+function edgeBandsToUi(bands: readonly number[]): Record<EdgeKey, EdgeBand> {
+  const g = (i: number): EdgeBand => (bands[i]! > 0 ? "16" : "none");
+  return { t: g(0), b: g(1), l: g(2), r: g(3) };
+}
+
+/** The t/b/l/r kromka UI → Part.edges [front,back,left,right] band thickness (mm10). */
+function uiToEdgeBands(ui: Record<EdgeKey, EdgeBand>): [number, number, number, number] {
+  const v = (band: EdgeBand) => (band === "none" ? 0 : EDGE_BAND_MM10);
+  return [v(ui.t), v(ui.b), v(ui.l), v(ui.r)];
+}
+
 /** #38: glaze kind of the selected component — a glazed door emits a glass-rebate groove (L8). */
 function componentGlaze(model: StructuralModel | null, componentId?: string): "none" | "single" | "grid" {
   if (!model || !componentId) return "none";
@@ -83,6 +110,7 @@ export function SelectionSheet() {
   const setBandTransition = useApp((s) => s.setBandTransition);
   const setJunction = useApp((s) => s.setJunction);
   const declareLoadBearing = useApp((s) => s.declareLoadBearing);
+  const setEdgeBands = useApp((s) => s.setEdgeBands);
   const overlay = usePanelUi((s) => s.overlay);
   const openPanel = usePanelUi((s) => s.open);
   // non-blocking ⚠ findings (E7/E6/E9) — shown for the selected instance(s)
@@ -114,8 +142,18 @@ export function SelectionSheet() {
   const [hw, setHw] = useState<"hinge" | "handle" | "slide">("hinge");
   const [material, setMaterial] = useState("oak-sonoma");
   const [partial, setPartial] = useState(true);
+  // #39 per-edge kromka — seeded from the selected component's live override (or the role default),
+  // and each cycle writes back to the engine (setEdgeBands → solver re-emits → export reflects it).
   const [edges, setEdges] = useState<Record<EdgeKey, EdgeBand>>({ t: "16", b: "16", l: "16", r: "16" });
-  const cycleEdge = (e: EdgeKey) => setEdges((prev) => ({ ...prev, [e]: NEXT_BAND[prev[e]] }));
+  useEffect(() => {
+    setEdges(edgeBandsToUi(componentEffectiveEdges(model, selection.componentId)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection.componentId]);
+  const cycleEdge = (e: EdgeKey) => {
+    const next = { ...edges, [e]: NEXT_BAND[edges[e]] };
+    setEdges(next);
+    if (selection.componentId) setEdgeBands(selection.componentId, uiToEdgeBands(next));
+  };
 
   // #40 junction offset (mm) — seeded from the selected instance's model value on selection change
   const [jun, setJun] = useState<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });

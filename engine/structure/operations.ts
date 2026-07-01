@@ -988,3 +988,34 @@ export function setLoadBearing(
   });
   return changed ? { ...model, blocks } : model;
 }
+
+/**
+ * setEdgeBands (#39 · Material→Кром.) — set (or clear with null) a component's per-edge kromka
+ * override `[front, back, left, right]` band thickness (mm10). The solver applies it in place of the
+ * role default. Pure; returns the same reference when unchanged so the store can no-op.
+ */
+export function setEdgeBands(
+  model: StructuralModel,
+  componentId: ComponentId,
+  edges: readonly [number, number, number, number] | null,
+): StructuralModel {
+  let changed = false;
+  const blocks = model.blocks.map((block) => {
+    const idx = block.components.findIndex((c) => c.id === componentId);
+    if (idx === -1) return block;
+    const cur = block.components[idx]!.edgeBands;
+    const same = edges === null ? !cur : !!cur && cur.every((v, i) => v === edges[i]);
+    if (same) return block; // no-op
+    changed = true;
+    const components = block.components.map((c, i) => {
+      if (i !== idx) return c;
+      if (edges === null) {
+        const { edgeBands: _drop, ...rest } = c;
+        return rest;
+      }
+      return { ...c, edgeBands: [edges[0], edges[1], edges[2], edges[3]] as const };
+    });
+    return { ...block, components };
+  });
+  return changed ? { ...model, blocks } : model;
+}
