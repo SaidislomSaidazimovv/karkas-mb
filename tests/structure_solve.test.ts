@@ -165,9 +165,10 @@ describe("S3 addInstance — add a shelf to a section", () => {
     }
   });
 
-  it("no-ops for kinds not yet supported", () => {
+  it("no-ops for out-of-scope hardware kinds (rail / drawer)", () => {
     const model = buildDemoModel();
-    expect(addInstance(model, "sec_left", "door")).toBe(model);
+    expect(addInstance(model, "sec_left", "rail")).toBe(model);
+    expect(addInstance(model, "sec_left", "drawer")).toBe(model);
   });
 
   it("throws on an unknown section", () => {

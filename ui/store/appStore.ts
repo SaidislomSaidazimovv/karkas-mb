@@ -194,7 +194,7 @@ export interface AppState {
   divide(sectionId: SectionId, opts: DivideOpts): void;
   moveLine(lineId: LineId, delta_mm10: number, scope: Scope): void;
   resize(partId: PartId, axis: "x" | "z", value_mm10: number): void;
-  addPart(sectionId: SectionId, kind: AddKind): void;
+  addPart(sectionId: SectionId, kind: AddKind, opts?: { doubled?: boolean }): void;
   detach(instanceId: InstanceId): void;
   reattach(instanceId: InstanceId): void;
   merge(sectionIds: readonly SectionId[]): void;
@@ -310,11 +310,11 @@ export const useApp = create<AppState>((set, get) => ({
       /* invalid extent / unknown block — ignore; the UI guards the stepper range */
     }
   },
-  addPart(sectionId, kind) {
+  addPart(sectionId, kind, opts) {
     const m = get().model;
     if (!m) return;
     try {
-      const next = addInstance(m, sectionId, kind);
+      const next = addInstance(m, sectionId, kind, opts);
       if (next === m) return; // unsupported kind → no-op
       applyEdit(get, set, next, false);
     } catch {

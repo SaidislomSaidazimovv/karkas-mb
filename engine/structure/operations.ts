@@ -663,43 +663,79 @@ export function dissolveGroup(model: StructuralModel, componentId: ComponentId):
 /** Kinds the UI's "Add" verb can place. First slice supports `"shelf"`. */
 export type AddKind = "shelf" | "rail" | "divider" | "drawer" | "door";
 
+/** Options for `addInstance` — currently the 32mm doubled build flag (L1). */
+export interface AddOpts {
+  readonly doubled?: boolean;
+}
+
 /**
- * Add a content instance to a leaf section and return the NEW model. First slice:
- * a shelf (`internal_shelf`) — reusing the block's shelf Component (or creating one),
- * then redistributing every shelf in that section to evenly-spaced heights so the result
- * looks right. No-op for kinds not yet supported. Throws on unknown / non-leaf section
- * (same error policy as divideSection).
+ * Add content to a leaf section and return the NEW model (E11):
+ *   • `"shelf"`  — an `internal_shelf` (redistributes the section's shelves to even heights)
+ *   • `"door"`   — a `facade` covering the section's front opening (Piece 2)
+ *   • `"divider"`— a structural split → delegates to `divideSection` (even 2-way on X)
+ * `opts.doubled` makes the shelf/door a 32mm build (two glued 16mm boards, L1). `"rail"`/`"drawer"`
+ * remain no-ops (drawer/rail hardware is out of scope). Throws on unknown / non-leaf section.
  */
 export function addInstance(
   model: StructuralModel,
   sectionId: SectionId,
   kind: AddKind = "shelf",
+  opts: AddOpts = {},
 ): StructuralModel {
-  if (kind !== "shelf") return model; // other kinds land in later slices
+  if (kind === "divider") {
+    return divideSection(model, sectionId, { kind: "equal", axis: "x", count: 2 });
+  }
+  if (kind !== "shelf" && kind !== "door") return model; // rail/drawer = out-of-scope hardware
 
   const located = findSection(model, sectionId);
   if (!located) throw new Error("ADD_INSTANCE_SECTION_NOT_FOUND");
   const { block, section } = located;
   if (section.children.length > 0) throw new Error("ADD_INSTANCE_SECTION_NOT_LEAF");
 
-  const roleOf = (inst: Instance) =>
-    block.components.find((c) => c.id === inst.componentId)?.role ?? null;
+  const doubled = opts.doubled === true;
+  return kind === "door"
+    ? addDoorInstance(model, block, section, doubled)
+    : addShelfInstance(model, block, section, doubled);
+}
 
-  // find or create the shelf component (role internal_shelf)
-  let shelf = block.components.find((c) => c.role === "internal_shelf") ?? null;
-  let components = block.components;
-  if (!shelf) {
-    shelf = { id: `${block.id}__cmp_shelf`, name: "Полка", partIds: [], role: "internal_shelf" };
-    components = [...block.components, shelf];
-  }
+/** Find (or create) a role component keyed by role + doubled flag, so plain and 32mm builds don't
+ *  collide on one shared type. Returns the component and the (possibly extended) component list. */
+function ensureComponent(
+  block: Block,
+  id: ComponentId,
+  name: string,
+  role: NonNullable<Component["role"]>,
+  doubled: boolean,
+): { component: Component; components: readonly Component[] } {
+  const existing = block.components.find((c) => c.id === id);
+  if (existing) return { component: existing, components: block.components };
+  const component: Component = { id, name, partIds: [], role, ...(doubled ? { doubled: true } : {}) };
+  return { component, components: [...block.components, component] };
+}
+
+/** Splice a section's updated instanceIds back into its zone tree. */
+function withSectionInstances(block: Block, section: Section, instanceIds: readonly InstanceId[]): Zone[] {
+  const next: Section = { ...section, instanceIds };
+  return block.zones.map((z) => {
+    const root = replaceSection(z.root, section.id, next);
+    return root === z.root ? z : { ...z, root };
+  });
+}
+
+function addShelfInstance(model: StructuralModel, block: Block, section: Section, doubled: boolean): StructuralModel {
+  const roleOf = (inst: Instance) => block.components.find((c) => c.id === inst.componentId)?.role ?? null;
+  const { component: shelf, components } = ensureComponent(
+    block,
+    `${block.id}__cmp_shelf${doubled ? "_x2" : ""}`,
+    doubled ? "Полка 32мм" : "Полка",
+    "internal_shelf",
+    doubled,
+  );
 
   const newId = `shelf_${block.instances.length + 1}`;
-
   // every shelf now living in this section, in order, gets an evenly-spaced height
   const order = [
-    ...block.instances
-      .filter((i) => i.sectionId === sectionId && roleOf(i) === "internal_shelf")
-      .map((i) => i.id),
+    ...block.instances.filter((i) => i.sectionId === section.id && roleOf(i) === "internal_shelf").map((i) => i.id),
     newId,
   ];
   const n = order.length;
@@ -709,20 +745,28 @@ export function addInstance(
     const idx = order.indexOf(i.id);
     return idx === -1 ? i : { ...i, anchor: { ...i.anchor, y: yAt(idx) } };
   });
-  instances.push({
-    id: newId,
-    componentId: shelf.id,
-    sectionId,
-    anchor: { x: section.box.x, y: yAt(n - 1), z: section.box.z },
-    link: "linked",
-  });
+  instances.push({ id: newId, componentId: shelf.id, sectionId: section.id, anchor: { x: section.box.x, y: yAt(n - 1), z: section.box.z }, link: "linked" });
 
-  const newSection: Section = { ...section, instanceIds: [...section.instanceIds, newId] };
-  const zones = block.zones.map((z) => {
-    const root = replaceSection(z.root, sectionId, newSection);
-    return root === z.root ? z : { ...z, root };
-  });
+  const zones = withSectionInstances(block, section, [...section.instanceIds, newId]);
+  const newBlock: Block = { ...block, components, instances, zones };
+  return { ...model, blocks: model.blocks.map((b) => (b.id === block.id ? newBlock : b)) };
+}
 
+function addDoorInstance(model: StructuralModel, block: Block, section: Section, doubled: boolean): StructuralModel {
+  const { component: door, components } = ensureComponent(
+    block,
+    `${block.id}__cmp_door${doubled ? "_x2" : ""}`,
+    doubled ? "Дверь 32мм" : "Дверь",
+    "facade",
+    doubled,
+  );
+
+  const newId = `door_${block.instances.length + 1}`;
+  const instances: Instance[] = [
+    ...block.instances,
+    { id: newId, componentId: door.id, sectionId: section.id, anchor: { x: section.box.x, y: section.box.y, z: section.box.z }, link: "linked" },
+  ];
+  const zones = withSectionInstances(block, section, [...section.instanceIds, newId]);
   const newBlock: Block = { ...block, components, instances, zones };
   return { ...model, blocks: model.blocks.map((b) => (b.id === block.id ? newBlock : b)) };
 }
