@@ -26,6 +26,12 @@ const POL_STEP = 0.04; // rad per tick — pitch
 const POL_MIN = 0.06;
 const POL_MAX = 1.45;
 
+// Web-only: keep a touch-drag on the joystick from becoming a browser scroll/zoom before the
+// PanResponder sees it (the reason it "did nothing" on a touchscreen). RN's ViewStyle has no
+// touchAction, so this is cast; react-native-web forwards it straight to the DOM as CSS.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const JOY_NO_TOUCH_SCROLL: any = { touchAction: "none", userSelect: "none" };
+
 export function CanvasView() {
   const sceneData = useApp((s) => s.scene);
   const model = useApp((s) => s.model);
@@ -308,7 +314,7 @@ export function CanvasView() {
 
           {/* Joystick — DRAG anywhere on the circle (incl. the knob) to orbit smoothly; tap an arrow
               for a discrete nudge. (Dragging the 3D model + wheel/pinch zoom = OrbitControls.) */}
-          <View style={styles.joy} {...joyPan.panHandlers}>
+          <View style={[styles.joy, JOY_NO_TOUCH_SCROLL]} {...joyPan.panHandlers}>
             <JoyArrow style={styles.joyUp} glyph="▲" onChange={() => nudgeCam(-POL_STEP, 0)} />
             <JoyArrow style={styles.joyDn} glyph="▼" onChange={() => nudgeCam(POL_STEP, 0)} />
             <JoyArrow style={styles.joyLf} glyph="◀" onChange={() => nudgeCam(0, -AZ_STEP)} />
