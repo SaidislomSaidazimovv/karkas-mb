@@ -198,12 +198,18 @@ export const CORNER_FILLER_W: mm10 = 500; // 50 mm — blind-corner overlap
 
 /**
  * An L-corner block (blocker #1: "block can be L, not just box; the corner object owns the
- * depth-step") → the L carcass: leg-A's carcass + leg-B's carcass (its side that abuts leg-A
- * omitted — the corner join) + a corner filler (blocker #6). Each leg carries its own depth
- * (blocker #3). Dimensions only — the 3D L placement is solveLayout's job (follow-up).
- * Filler width is GROUNDED (50mm blind-corner overlap — see CORNER_FILLER_W). The only remaining
- * emit detail is which leg omits its corner side (minor); back-panel exclusion at the corner
- * (Researches/-h03) is a later refinement.
+ * depth-step") → the L carcass: leg-A's carcass + leg-B's carcass (its corner-abutting side omitted)
+ * + a corner filler (blocker #6). Each leg carries its own depth (blocker #3).
+ *
+ * GROUNDING (E14, corrected): the join is the blind-corner Pattern A — "the perpendicular wall
+ * cabinet butts into the SIDE of the first" (Researches/-r4 UI Further.md:1241-1250). So leg-B drops
+ * its corner-abutting side and leg-A keeps both of its sides (leg-B butts against one). The filler is
+ * the 50mm blind-corner strip (default of the grounded 50–100mm range: -r3 UI 1.md:327 + -r4:1250);
+ * carcass widths + filler close the run length (DB/20 GEO-3). NOTE: the earlier "back-panel exclusion
+ * (Researches/-h03)" note was a MISLABEL — that file only NAMES a test fixture, it states no rule;
+ * and in solveLayout's geometry leg-B sits fully BEHIND leg-A (z + legA.depth), so the two backs are
+ * perpendicular and adjacent, NOT overlapping — there is nothing to exclude. Real leg-B interior
+ * content (its own shelves/dividers) needs per-leg sections — a separate blocker-#1 task, not this.
  */
 function lCornerParts(block: Block): Part[] {
   const fp = block.footprint!;

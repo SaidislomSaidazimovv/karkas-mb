@@ -104,8 +104,10 @@ function lCornerLayout(block: Block): PanelPlacement[] {
   const bBox: Box6 = { x, y, z: z + aDepth, w: fp.legB.depth_mm10, h, d: fp.legB.length_mm10 };
   return [
     ...carcassPlace(`${block.id}__legA`, "Плечо A · ", aBox),
+    // leg-B sits fully BEHIND leg-A (z + legA.depth): its back is perpendicular to leg-A's and
+    // adjacent to it, not overlapping — the blind-corner Pattern A (see lCornerParts / -r4:1241-1250).
     ...carcassPlaceZ(`${block.id}__legB`, "Плечо B · ", bBox),
-    // A vertical filler strip at the inner corner (blocker #6).
+    // The 50mm blind-corner door-clearance filler at the inner corner (blocker #6; -r3:327, GEO-3).
     place(`${block.id}__corner_filler`, "Угловая планка", x + fp.legB.depth_mm10, y, z + aDepth - CORNER_FILLER_W, B, h, CORNER_FILLER_W),
   ];
 }
