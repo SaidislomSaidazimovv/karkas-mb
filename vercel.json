@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd ui && npm install",
+  "buildCommand": "cd ui && node scripts/build-engine.mjs && npx expo export -p web",
+  "outputDirectory": "ui/dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
