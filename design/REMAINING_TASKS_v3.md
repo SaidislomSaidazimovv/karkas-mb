@@ -129,3 +129,32 @@ systems · штанга rod · handle/knob drilling · manufacturing-gate rules 
 ## ⏸ v3 DEFERRED (ledger — intentional, logged so they don't resurface)
 #4 non-rectangular outlines (angled shelves, V1.5) · #5 worktop cross-block · #6 corner filler
 panels · #8 per-face material roles.
+
+---
+
+## 🏭 FACTORY-DATA AUDIT (2026-07-02) — what the placeholder numbers actually are
+
+Deep search of the golden SWJ008 files (`Example sets/prop-0|1|2/**.XML`, ~350 files) + `CORE 1-3`,
+`DB`, `Researches`, `hardware_specs.dummy.ts`. Purpose: which flagged placeholders have real factory
+numbers in the files, which are genuinely ABSENT. **No number invented; every value cited.**
+
+| Placeholder | In the files? | Finding (with source) |
+|---|---|---|
+| **Glass-rebate groove** (depth/width/offset) | ❌ **ABSENT** | The factory does **not** cut a glass-seat groove in SWJ008 — glass (solid) doors carry only Ø35 cups, no Type-4 groove. Engine's `GLASS_REBATE_WIDTH=40`/`DEPTH=80` are copied from the HDF back-panel groove (`SHK ONG BAK_6_1.XML` W4.0/D8.0); the `INSET=400` (40mm) is invented. Keep `verified:false`. |
+| **3mm glass pane** | ✅ CONFIRMED | OYNA panels `Thickness="3.000"` (e.g. `prop-1/prop/OYNA_29_1.XML`). |
+| **`HINGE_MAX_PROUD_MM10=300` (30mm reach)** | ❌ **ABSENT** | No proud/oversail/reach limit anywhere. It lives on a manufacturer CLIP-top/crank datasheet the factory hasn't supplied. Keep flagged. |
+| **Ø35 hinge cup** (Ø35 × 13 deep, 21.5mm from edge) | ✅ **GROUNDED** | Real, in `engine/catalogs/hardware_specs.dummy.ts` `verified:true` (from `prop-2/SHKOF ORTA CHAP ESHIK_7_1.XML`). Corrects earlier 22.5→**21.5**. |
+| **Hinge count / spacing by height** | ⚠️ PARTIAL | End cups **100mm** inset, 3-cup doors evenly spaced (<1mm). 4-cup doors: variable inset (84 or 100mm), **enlarged middle gap** (639-671 vs 610-621) → the **±1mm even-spacing claim is REFUTED** (~10mm off). Needs hinge-plate spec. |
+| **Doubled-door cups** (which 16mm layer) | ❌ **ABSENT** | No 32mm / 2×16 door exists in any golden set. Cannot confirm outer-only. Keep flagged. |
+| **Glazed-GRID stile no-hinge** | ❌ **ABSENT** | No framed/grid glass door in the golden set. Glazed doors here are **solid 16mm + 4 normal cups**. Cannot confirm/refute. |
+| **Shelf-pin Ø5** | ✅ CONFIRMED | Ø5 in all files. |
+| **Shelf-pin depth 11 @ 91.5mm** | ⚠️ **DISCREPANCY** | That's from ONE old fixture (`tests/golden/xml/ORTA_BAK_6_1.XML`). All 3 **production** sets use **Ø5 × depth 14 @ ~64mm** (`SHK CHAP ORTA BAK_8_1.XML` etc.; setback varies 59.5-115mm). **Founder decision 2026-07-02: KEEP engine at 11@91.5 — do not change a factory-critical value until the factory confirms which is canonical.** |
+| **Shelf-pins on both faces** | ✅ CONFIRMED (rule) | `ORTA_BAK_6_1.XML` drills Ø5 on BOTH Face5 (Y91.5/411.5) and Face6 (Y59.5/443.5) — a divider with shelves on both sides. Engine's "Face A only" should emit Face-B when the adjacent section also has an adjustable shelf. (Behavioural E13 item — not a constant.) |
+
+### Bottom line
+Most placeholder numbers (glass rebate, hinge proud, doubled-door cups, grid-stile hinge) are
+**genuinely ABSENT from the files** — the engine's `flagged`/`verified:false` markers are HONEST and
+correct; they truly await **factory input** (a hinge-arm datasheet + doubled-door / grid-door / more
+door exports). What IS grounded (Ø35 cup, 3mm pane, both-face shelf-pin rule) is already reflected or
+noted. The only actionable discrepancy — shelf-pin 11@91.5 vs production 14@64 — is **held pending
+factory confirmation** per founder decision (no code change).
