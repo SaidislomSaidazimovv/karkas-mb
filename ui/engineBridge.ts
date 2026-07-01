@@ -26,6 +26,9 @@ export type { HingeFitFinding } from "./_engine/structure/hingeFit";
 // E12: L8 emit-completeness gate (blocks export on a missing machining emission).
 export { checkEmitCompleteness } from "./_engine/structure/emitCheck";
 export type { EmitFinding } from "./_engine/structure/emitCheck";
+// E9: sliding-accessory motion clearance (non-blocking ⚠). The store derives it; U16 renders it.
+export { checkMotionClearance } from "./_engine/structure/motion";
+export type { MotionFinding } from "./_engine/structure/motion";
 export {
   divideSection,
   mergeSections,

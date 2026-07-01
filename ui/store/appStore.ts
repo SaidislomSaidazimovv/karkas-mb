@@ -18,6 +18,7 @@ import {
   countExceptions,
   detachInstance,
   checkHingeFit,
+  checkMotionClearance,
   checkStability,
   divideSection,
   exportModelToSWJ008,
@@ -36,6 +37,7 @@ import type {
   DivideMode,
   EngineSelection,
   HingeFitFinding,
+  MotionFinding,
   StabilityFinding,
   InstanceId,
   LineId,
@@ -125,6 +127,7 @@ function derive(model: StructuralModel): {
   price_sum: number;
   stability: readonly StabilityFinding[];
   hingeFit: readonly HingeFitFinding[];
+  motionClearance: readonly MotionFinding[];
 } {
   const parts = solveStructure(model);
   const project: Project = { id: model.id, name: model.name, parts };
@@ -134,6 +137,7 @@ function derive(model: StructuralModel): {
     price_sum: estimatePrice(parts),
     stability: checkStability(model), // L5 non-blocking ⚠ (E7); U13 renders the badge
     hingeFit: checkHingeFit(model), // #13 non-blocking ⚠ (E6); U11 renders the badge
+    motionClearance: checkMotionClearance(model), // E9 non-blocking ⚠; U16 renders the badge
   };
 }
 
@@ -172,6 +176,7 @@ export interface AppState {
   scene: readonly PanelPlacement[]; // positioned panels for the 3D viewport (T1 renders this)
   stability: readonly StabilityFinding[]; // L5 non-blocking ⚠ findings (E7) — U13 renders the badge
   hingeFit: readonly HingeFitFinding[]; // #13 non-blocking ⚠ findings (E6) — U11 renders the badge
+  motionClearance: readonly MotionFinding[]; // E9 non-blocking ⚠ — sliding accessory travel obstructed
   past: readonly StructuralModel[]; // undo stack (T1 HUD: enabled when past.length > 0)
   future: readonly StructuralModel[]; // redo stack
   hiddenIds: readonly PartId[]; // parts toggled off in the 3D view (Zone 5 eye) — view-only, NOT export

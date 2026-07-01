@@ -45,6 +45,9 @@ export type { HingeFitFinding } from "./structure/hingeFit.js";
 // E12: L8 emit-completeness gate — blocks export when a declared feature never emitted its machining.
 export { checkEmitCompleteness } from "./structure/emitCheck.js";
 export type { EmitFinding } from "./structure/emitCheck.js";
+// E9: sliding-accessory motion envelope + clearance (non-blocking ⚠ when the travel is obstructed).
+export { checkMotionClearance, sweptEnvelope } from "./structure/motion.js";
+export type { MotionFinding, MotionEnvelope } from "./structure/motion.js";
 export { parseSWJ008, parseSWJ008Document } from "./postprocessors/swj008Parse.js";
 export { canonicalizeParts, canonicalizePart } from "./core/canonical.js";
 export type {

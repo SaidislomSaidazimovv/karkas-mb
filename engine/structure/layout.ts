@@ -222,6 +222,25 @@ function glazedGridPlacement(block: Block, inst: Instance): PanelPlacement[] | n
   return out;
 }
 
+/** A sliding accessory placement (E9): render the motion component as a thin rack in its section at
+ *  the anchor height (its home/retracted position). The swept envelope is computed in motion.ts. */
+function motionPlacement(block: Block, inst: Instance): PanelPlacement | null {
+  const section = sectionById(block, inst.sectionId);
+  const component = componentById(block, inst.componentId);
+  if (!section || !component || !component.motion) return null;
+  const s = section.box;
+  return place(
+    `${block.id}__inst_${inst.id}`,
+    component.name,
+    block.box.x + s.x + B,
+    block.box.y + inst.anchor.y,
+    block.box.z + s.z,
+    s.w - 2 * B,
+    B,
+    s.d,
+  );
+}
+
 /**
  * Off-plane junction offset (#40, E5): push a placement proud by the shadow-gap so the reveal is
  * emitted, not implied (v3:177). The oversail / step-back values are carried in the model for the
@@ -242,7 +261,7 @@ export function solveLayout(model: StructuralModel): PanelPlacement[] {
     for (const line of block.lines) out.push(dividerPlacement(block, line));
     for (const inst of block.instances) {
       const grid = glazedGridPlacement(block, inst); // E2: multi-panel glazed-grid door
-      const placements = grid ?? [shelfPlacement(block, inst) ?? facadePlacement(block, inst)]
+      const placements = grid ?? [motionPlacement(block, inst) ?? shelfPlacement(block, inst) ?? facadePlacement(block, inst)]
         .filter((p): p is PanelPlacement => p !== null);
       for (const p of placements) out.push(inst.junction ? applyJunction(p, inst.junction) : p);
     }

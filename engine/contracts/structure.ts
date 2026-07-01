@@ -223,6 +223,13 @@ export interface Component {
    * modelled now). Cosmetic + cut-list precision; NOT expressible in SWJ008. Absent = "butt".
    */
   readonly bandTransition?: BandTransition;
+  /**
+   * Motion envelope (E9, CONSTRUCTION_FRAME_v3 Piece 1 step 6: "sliding pants accessory — component
+   * with motion envelope"). The one moving part in v3: it slides `travel_mm10` along `axis`, sweeping
+   * a clearance volume nothing may obstruct. This is the envelope model, NOT drawer/rail hardware
+   * (out of scope). Absent = a static component.
+   */
+  readonly motion?: { readonly axis: Axis; readonly travel_mm10: mm10 };
 }
 
 /** How two edge bands meet at a panel corner (#39). "mitre" 45° geometry is V2-deferred. */
