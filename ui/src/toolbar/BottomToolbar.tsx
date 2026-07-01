@@ -43,9 +43,19 @@ const SLOTS: Record<Mode, Slot[]> = {
 
 export function BottomToolbar() {
   const mode = useApp((s) => s.mode);
+  const selection = useApp((s) => s.selection);
   const open = usePanelUi((s) => s.open);
   const close = usePanelUi((s) => s.close);
   const slots = SLOTS[mode];
+  const hasSel = selection.kind !== "none";
+
+  // A build verb press either opens its sheet (needs a selection) or just clears a stray overlay.
+  const runBuildVerb = (key: string) => {
+    if (key === "add") return open("add");
+    if (key === "resize" && hasSel) return open("resize");
+    if (key === "divide" && selection.sectionId) return open("divide");
+    close(); // select / move (canvas-driven) / preconditions unmet → clean slate
+  };
   // Active verb is local toolbar state (the selected verb within a mode); the first
   // non-reserved slot is the default. Switching mode resets it via the keyed default below.
   const [activeByMode, setActiveByMode] = useState<Record<Mode, string>>({
@@ -64,9 +74,9 @@ export function BottomToolbar() {
             disabled={slot.reserved}
             onPress={() => {
               setActiveByMode((m) => ({ ...m, [mode]: slot.key }));
-              // «Добавить» opens the add drill-sheet; any other verb clears a stray overlay so the
-              // single bottom slot never stacks two panels.
-              if (mode === "build" && slot.key === "add") open("add");
+              // Build verbs open their sheet (Разм.→resize, Дел.→divide, Доб.→add); other modes edit
+              // in the always-visible SelectionSheet body, so their verbs just clear a stray overlay.
+              if (mode === "build") runBuildVerb(slot.key);
               else close();
             }}
           >

@@ -181,15 +181,17 @@ export function CanvasView() {
 
       {/* Overlay layer — taps pass through to the 3D except on the controls below. */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        {/* Shape selector (blocker #1) — switch the cabinet between a plain box and an L-corner. */}
-        <View style={styles.shapeSel} pointerEvents="box-none">
-          <Pressable style={[styles.shapeOpt, !isLCorner && styles.shapeOptOn]} onPress={onLoadStraight}>
-            <Text style={[styles.shapeOptT, !isLCorner && styles.shapeOptTOn]}>▭ Прямой</Text>
-          </Pressable>
-          <Pressable style={[styles.shapeOpt, isLCorner && styles.shapeOptOn]} onPress={onLoadLCorner}>
-            <Text style={[styles.shapeOptT, isLCorner && styles.shapeOptTOn]}>⌐ L-угол</Text>
-          </Pressable>
-        </View>
+        {/* Shape selector (blocker #1) — switch box ↔ L-corner. Hidden while a sheet owns the slot. */}
+        {canvasClear && (
+          <View style={styles.shapeSel} pointerEvents="box-none">
+            <Pressable style={[styles.shapeOpt, !isLCorner && styles.shapeOptOn]} onPress={onLoadStraight}>
+              <Text style={[styles.shapeOptT, !isLCorner && styles.shapeOptTOn]}>▭ Прямой</Text>
+            </Pressable>
+            <Pressable style={[styles.shapeOpt, isLCorner && styles.shapeOptOn]} onPress={onLoadLCorner}>
+              <Text style={[styles.shapeOptT, isLCorner && styles.shapeOptTOn]}>⌐ L-угол</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Merge mode toggle (Build) — collect adjacent sections, then «Объединить». */}
         {mode === "build" && canvasClear && (
@@ -267,14 +269,16 @@ export function CanvasView() {
           </View>
         )}
 
-        {/* HUD */}
+        {/* HUD — camera + history; hidden while a bottom sheet owns the slot (no float-over). */}
+        {canvasClear && (
         <View style={styles.hud} pointerEvents="box-none">
           <View style={styles.hudCluster}>
-            <HudBtn glyph="◰" onPress={() => toggleView("geometry")} />
+            {/* Reset the camera to the default 3/4 view. */}
+            <HudBtn glyph="⌂" onPress={() => setOrbit([0.5, 0.6])} />
             <HudBtn glyph="⊘" onPress={deselectAll} dark />
           </View>
 
-          {/* Joystick — press-and-hold to orbit the camera around the cabinet. */}
+          {/* Joystick — hold an arrow to orbit, tap the centre knob to reset the view. */}
           <View style={styles.joy} pointerEvents="box-none">
             <JoyArrow
               style={styles.joyUp}
@@ -296,15 +300,16 @@ export function CanvasView() {
               glyph="▶"
               onChange={() => setOrbit(([p, a]) => [p, a + AZ_STEP])}
             />
-            <View style={styles.knob} pointerEvents="none" />
+            <Pressable style={styles.knob} onPress={() => setOrbit([0.5, 0.6])} hitSlop={4} />
           </View>
 
           {/* Undo/redo — wired to the store history; disabled when the stack is empty. */}
           <View style={[styles.hudCluster, styles.hudRight]}>
-            <HudBtn glyph="↶" onPress={undo} disabled={!canUndo} />
-            <HudBtn glyph="↷" onPress={redo} disabled={!canRedo} />
+            <HudBtn glyph="↺" onPress={undo} disabled={!canUndo} />
+            <HudBtn glyph="↻" onPress={redo} disabled={!canRedo} />
           </View>
         </View>
+        )}
 
         {/* Divide modes sheet — opens over the HUD when «Разделить» is tapped. */}
         {divideOpen && hasSel && mode === "build" && selection.sectionId && (

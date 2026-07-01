@@ -67,6 +67,7 @@ export function AddSheet() {
       closeAdd();
       return;
     }
+    if (item.kind === "drawer") return; // ящик/выдвижная — out of scope (engine no-op), disabled
     if (!sectionId) return; // disabled — a leaf needs a target section
     const opts = item.doubled
       ? { doubled: true }
@@ -90,13 +91,14 @@ export function AddSheet() {
         </Pressable>
       </View>
       {node.items.map((it) => {
-        const leafDisabled = !it.into && !!it.kind && !sectionId;
+        const isDrawer = it.kind === "drawer"; // out of scope → shown but disabled with a «скоро» note
+        const leafDisabled = isDrawer || (!it.into && !!it.kind && !sectionId);
         return (
           <View key={it.id} style={leafDisabled ? styles.disabled : undefined}>
             <MenuRow
               icon={it.icon}
               title={it.title}
-              sub={it.sub}
+              sub={isDrawer ? "скоро" : it.sub}
               trailing={it.into ? "chev" : "none"}
               onPress={() => onItem(it)}
             />

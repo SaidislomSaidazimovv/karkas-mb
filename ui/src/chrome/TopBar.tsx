@@ -26,10 +26,13 @@ export function TopBar({
   const price = useApp((s) => s.price_sum);
   const open = usePanelUi((s) => s.open);
   const toggle = usePanelUi((s) => s.toggle);
+  const close = usePanelUi((s) => s.close);
   // «Дальше»/«Готово» → CNC-export sheet, unless the host wires its own advance handler
   const advance = onAdvance ?? (() => open("export"));
   // ☰ → app menu (Слои · Экспорт …) — a TOGGLE of the single overlay slot (tap again to close).
   const menu = onMenu ?? (() => toggle("menu"));
+  // «‹» — no multi-screen nav here yet; make it a "back" that closes any open bottom sheet.
+  const back = onBack ?? close;
   return (
     <View>
       <View style={styles.bar}>
@@ -41,7 +44,7 @@ export function TopBar({
           </View>
         </View>
 
-        <Pressable style={styles.icirc} onPress={onBack} hitSlop={6}>
+        <Pressable style={styles.icirc} onPress={back} hitSlop={6}>
           <Icon name="back" size={20} color={C.ink} />
         </Pressable>
 
