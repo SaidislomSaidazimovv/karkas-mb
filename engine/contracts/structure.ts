@@ -200,6 +200,13 @@ export interface Component {
    * instead of one door panel. Optional/additive.
    */
   readonly glazedGrid?: { readonly lights: number };
+  /**
+   * Partial doubling (CONSTRUCTION_FRAME_v3 L2 "lightness via real partial doubling", Piece 3): a
+   * `front_mm10`-wide strip along the panel's FRONT edge is doubled — 32mm at the front, 16mm
+   * behind, with a step on the underside. The solver emits the base board + the front-strip board.
+   * (This creates the step; the step-aware MOUNTING resolution of parts under it is a follow-up.)
+   */
+  readonly partialDouble?: { readonly front_mm10: mm10 };
 }
 
 /** Whether an instance follows its Component definition or overrides it. */

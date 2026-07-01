@@ -91,6 +91,25 @@ export function doublePanel(base: Part): [Part, Part] {
   return [outer, inner];
 }
 
+/**
+ * Partial doubling (CONSTRUCTION_FRAME_v3 L2 "lightness via real partial doubling" / Piece 3): a
+ * `front_mm10`-wide strip along the FRONT edge is doubled. Emit the base board + a front-strip
+ * board (16mm, full length × front_mm10 deep) glued under the front — 32mm at the front, 16mm
+ * behind, with a step on the underside. (This creates the step; the step-aware MOUNTING resolution
+ * of parts touching that underside needs a mounting-relationship model — a follow-up.)
+ */
+export function partialDoublePanels(base: Part, front_mm10: mm10): [Part, Part] {
+  const strip: Part = {
+    ...base,
+    id: `${base.id}__front`,
+    name: `${base.name} · фронт-удвоение`,
+    width_mm10: front_mm10, // the doubled strip runs full length × front_mm10 deep
+    edges: [0, 0, 0, 0], // internal glue face — not banded
+    operations: [],
+  };
+  return [base, strip];
+}
+
 // Glazed-grid dimensions (CONSTRUCTION_FRAME_v3 Piece 2). NOT fixture-grounded — reasonable
 // defaults, confirm at the factory (S3-E7). Frame + muntins are 16/32mm wood; the pane is 3mm glass.
 const GLAZED_FRAME_W: mm10 = 400; // 40 mm outer stile/rail width
@@ -229,6 +248,7 @@ function instanceParts(block: Block, inst: Instance): Part[] {
     const width = section.box.d; // depth (Y)
     // Banded on the FRONT edge (Face 1 = edges[0] = the Y=Width depth-front edge) — see frontBand().
     const base = panel(`${block.id}__inst_${inst.id}`, component.name, length, width, frontBand());
+    if (component.partialDouble) return partialDoublePanels(base, component.partialDouble.front_mm10);
     return component.doubled ? doublePanel(base) : [base];
   }
   // A facade/door covers a section's front opening: height (X, hinge axis) × width (Y), banded
