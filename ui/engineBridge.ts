@@ -14,6 +14,9 @@ export { solvePreview, solveFull } from "./_engine/index";
 // E1: manufacturing path — live model → drilled parts → byte-exact SWJ008 cut file. Metro-safe
 // (the hardware catalog is a `.ts` data module, no JSON import-attribute).
 export { solveModelToParts, exportModelToSWJ008 } from "./_engine/cnc";
+// E7: L5 stability check (non-blocking ⚠). The store derives it; U13 renders the badge.
+export { checkStability, SPAN_LIMIT_16MM_MM10 } from "./_engine/structure/stability";
+export type { StabilityFinding, StabilityLevel } from "./_engine/structure/stability";
 export {
   divideSection,
   mergeSections,

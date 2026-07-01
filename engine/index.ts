@@ -32,6 +32,10 @@ export { exportSWJ008 } from "./postprocessors/swj008.js";
 // E1: the manufacturing path — live structural model → drilled parts → byte-exact SWJ008 cut
 // file. Metro-safe now that the hardware catalog is a `.ts` data module (no JSON import-attribute).
 export { solveModelToParts, exportModelToSWJ008 } from "./cnc.js";
+// E7: L5 stability check (non-blocking ⚠ on over-span load-bearing shelves). Separate from the
+// export gate by design — it warns, never blocks (CONSTRUCTION_FRAME_v3 L5).
+export { checkStability, SPAN_LIMIT_16MM_MM10 } from "./structure/stability.js";
+export type { StabilityFinding, StabilityLevel } from "./structure/stability.js";
 export { parseSWJ008, parseSWJ008Document } from "./postprocessors/swj008Parse.js";
 export { canonicalizeParts, canonicalizePart } from "./core/canonical.js";
 export type {
