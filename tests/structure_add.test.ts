@@ -61,6 +61,17 @@ describe("E11 — addInstance door / divider / doubled", () => {
     expect(root(out).children).toHaveLength(2);
   });
 
+  it("creates a glazed-grid door when opts.glazedGrid is given (Piece 2)", () => {
+    const out = addInstance(base(), "sec", "door", { glazedGrid: { lights: 3 } });
+    const grid = block(out).components.find((c) => c.role === "facade" && c.glazedGrid);
+    expect(grid).toBeDefined();
+    expect(grid!.glazedGrid!.lights).toBe(3);
+    // a plain door and a glazed-grid door are separate components
+    let m = addInstance(base(), "sec", "door");
+    m = addInstance(m, "sec", "door", { glazedGrid: { lights: 2 } });
+    expect(block(m).components.filter((c) => c.role === "facade")).toHaveLength(2);
+  });
+
   it("rail and drawer stay no-ops (out-of-scope hardware)", () => {
     const m = base();
     expect(addInstance(m, "sec", "rail")).toBe(m);

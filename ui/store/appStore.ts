@@ -199,7 +199,7 @@ export interface AppState {
   divide(sectionId: SectionId, opts: DivideOpts): void;
   moveLine(lineId: LineId, delta_mm10: number, scope: Scope): void;
   resize(partId: PartId, axis: "x" | "z", value_mm10: number): void;
-  addPart(sectionId: SectionId, kind: AddKind, opts?: { doubled?: boolean }): void;
+  addPart(sectionId: SectionId, kind: AddKind, opts?: { doubled?: boolean; glazedGrid?: { lights: number } }): void;
   detach(instanceId: InstanceId): void;
   reattach(instanceId: InstanceId): void;
   merge(sectionIds: readonly SectionId[]): void;

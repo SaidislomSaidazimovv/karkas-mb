@@ -665,9 +665,11 @@ export function dissolveGroup(model: StructuralModel, componentId: ComponentId):
 /** Kinds the UI's "Add" verb can place. First slice supports `"shelf"`. */
 export type AddKind = "shelf" | "rail" | "divider" | "drawer" | "door";
 
-/** Options for `addInstance` — currently the 32mm doubled build flag (L1). */
+/** Options for `addInstance` — the 32mm doubled build (L1) and a glazed-grid door (Piece 2). */
 export interface AddOpts {
   readonly doubled?: boolean;
+  /** door only: create a glazed-GRID facade of `lights` panes instead of a plain door (Piece 2). */
+  readonly glazedGrid?: { readonly lights: number };
 }
 
 /**
@@ -696,7 +698,7 @@ export function addInstance(
 
   const doubled = opts.doubled === true;
   return kind === "door"
-    ? addDoorInstance(model, block, section, doubled)
+    ? addDoorInstance(model, block, section, doubled, opts.glazedGrid)
     : addShelfInstance(model, block, section, doubled);
 }
 
@@ -754,14 +756,28 @@ function addShelfInstance(model: StructuralModel, block: Block, section: Section
   return { ...model, blocks: model.blocks.map((b) => (b.id === block.id ? newBlock : b)) };
 }
 
-function addDoorInstance(model: StructuralModel, block: Block, section: Section, doubled: boolean): StructuralModel {
-  const { component: door, components } = ensureComponent(
-    block,
-    `${block.id}__cmp_door${doubled ? "_x2" : ""}`,
-    doubled ? "Дверь 32мм" : "Дверь",
-    "facade",
-    doubled,
-  );
+function addDoorInstance(
+  model: StructuralModel,
+  block: Block,
+  section: Section,
+  doubled: boolean,
+  glazedGrid?: { readonly lights: number },
+): StructuralModel {
+  // A glazed-grid door is its own component (distinct from a plain/doubled door), keyed by lights.
+  const id = `${block.id}__cmp_door${doubled ? "_x2" : ""}${glazedGrid ? `_grid${glazedGrid.lights}` : ""}`;
+  let door = block.components.find((c) => c.id === id) ?? null;
+  let components = block.components;
+  if (!door) {
+    door = {
+      id,
+      name: glazedGrid ? "Витрина" : doubled ? "Дверь 32мм" : "Дверь",
+      partIds: [],
+      role: "facade",
+      ...(doubled ? { doubled: true } : {}),
+      ...(glazedGrid ? { glazedGrid } : {}),
+    };
+    components = [...block.components, door];
+  }
 
   const newId = `door_${block.instances.length + 1}`;
   const instances: Instance[] = [
