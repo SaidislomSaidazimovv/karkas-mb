@@ -188,6 +188,11 @@ export interface Component {
    * emits two Part records per placement (layer A + B). Optional/additive — absent = single 16mm.
    */
   readonly doubled?: boolean;
+  /**
+   * Glass infill (facade): `true` = a glazed door. The machining pass emits the glass rebate
+   * groove (L8 #38 — "the groove that holds the pane is cut, not implied"). Optional/additive.
+   */
+  readonly glazed?: boolean;
 }
 
 /** Whether an instance follows its Component definition or overrides it. */
