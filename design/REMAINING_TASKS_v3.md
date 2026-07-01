@@ -28,7 +28,18 @@ Design system (colours/fonts) is borrowed from Part-1 (`netlifypictures/`); func
 
 ---
 
-## 🔧 ENGINE — remaining (v3 scope) · 14 items · priority-ordered
+## ✅ ENGINE — ALL 14 DONE (2026-07-01, HEAD `811d39c`, 206 tests)
+
+E1 SWJ008 export `60842e7` · E8 resize `5ac1873` · E7 stability `4a5b534` · E2 glazed-grid layout
+`8911d30` · E3 grid rebate `8fd266c` · E4 #39 band-transition `fcf6374` · E5 #40 junction `e44a27d`
+· E6 #13 hinge revalidation `08ead26` · E12 emit-completeness gate `85c4bdc` · E9 motion envelope
+`95fec28` · E10 group-dissolve `78789e7` · E11 addInstance door/divider+doubled `9b6fb50` · E13
+drilling refine `021a7aa` · E14 L-corner refine `811d39c`. All v3-grounded (deep-research; SWJ008-
+inexpressible / V2 / factory-datasheet items honestly flagged, not guessed). **Next phase: UI (below).**
+
+<details><summary>original engine breakdown (now all ✅)</summary>
+
+## 🔧 ENGINE — done (v3 scope) · 14 items · priority-ordered
 
 | # | Item | v3 grounding | State | What's left | Size |
 |---|------|-------------|-------|-------------|------|
@@ -53,7 +64,9 @@ Design system (colours/fonts) is borrowed from Part-1 (`netlifypictures/`); func
 
 ---
 
-## 🎨 UI — remaining (v3 scope) · AFTER engine · for T1/T2 later
+</details>
+
+## 🎨 UI — remaining (v3 scope) · AFTER engine · for T1/T2 later — **← NOW THE ACTIVE PHASE**
 
 **Wired & working (not remaining):** adaptive selection card · divide · detach · undo/redo · layers
 tree + eye-hide · price ticker · camera orbit · view lenses (geometry/lines/glass/dimension) ·
