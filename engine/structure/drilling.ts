@@ -257,17 +257,25 @@ export function applyDrilling(
     const gm = gridMemberOf(part.id);
     if (gm && glazedGrids.has(gm.instId)) {
       const isFrame = ["stile_l", "stile_r", "rail_b", "rail_t"].includes(gm.member);
-      const groove =
-        (isFrame && part.id.endsWith("__a")) || gm.member.startsWith("muntin")
-          ? memberRebate(part)
-          : [];
-      return groove.length === 0 ? part : { ...part, operations: [...part.operations, ...groove] };
+      let ops = part.operations;
+      // Pane-seat rebate on each frame member (outer __a) + each muntin (E3).
+      if ((isFrame && part.id.endsWith("__a")) || gm.member.startsWith("muntin")) {
+        ops = [...ops, ...memberRebate(part)];
+      }
+      // E13(c): the grid door hinges on its hinge-side stile (left, outer __a board) — previously it
+      // got no hinge at all because instIdOf strips the member suffix.
+      if (hinge && gm.member === "stile_l" && part.id.endsWith("__a")) {
+        ops = [...ops, ...hingeCupPattern(part, "y0", hingePositions(part.length_mm10), hinge)];
+      }
+      return ops === part.operations ? part : { ...part, operations: ops };
     }
 
     // Facade/door → hinge cups (y0 edge, GROUNDED: SHKOF door cups at Y=21.5) + the glass rebate
-    // groove when the facade is glazed (L8 #38).
+    // groove when the facade is glazed (L8 #38). E13(b): on a DOUBLED door only the outer layer (__a)
+    // carries the cups + rebate — the hidden inner board (__b) is not machined.
     const instId = instIdOf(part.id);
     if (instId && facades.has(instId)) {
+      if (part.id.endsWith("__b")) return part; // inner glued layer — no face machining
       let ops = part.operations;
       if (hinge) ops = [...ops, ...hingeCupPattern(part, "y0", hingePositions(part.length_mm10), hinge)];
       if (glazed.has(instId)) ops = [...ops, ...glassRebate(part)];
