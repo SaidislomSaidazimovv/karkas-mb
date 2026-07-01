@@ -13,3 +13,6 @@ expo-env.d.ts
 # misc
 *.log
 .DS_Store
+
+# Lokal ilova-sharhi (ichki holat) — hech qachon GitHub'ga (karkas-mb) chiqmasin
+MEBELCHI_APP_OVERVIEW_LOCAL.md
