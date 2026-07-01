@@ -1,8 +1,10 @@
 // src/sheets/AddSheet.tsx — «Добавить» nested drill-menu. OWNER: T2.
 //
 // S3-T2C: the visual add-flow (design: construction-v3-preview.html §6 «Добавить › Полка»,
-// ‹ ortga · › chuqurlashadi). Navigation is real (drill stack in panelUi); the leaf action
-// calls store.addPart — a stable no-op until the engine `addInstance` op lands (P, gated).
+// ‹ ortga · › chuqurlashadi). Navigation is real (drill stack in panelUi).
+// S3-U10: leaf rows are WIRED to the live engine — store.addPart(sectionId, kind, opts):
+//   shelf / shelf+{doubled} / door / divider all create real parts (E11 addInstance), undo-able.
+//   A leaf needs a target leaf-section (selection.sectionId); without one the row is disabled.
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp, type AddKind } from "../../store/appStore";
 import { usePanelUi } from "./panelUi";
@@ -17,6 +19,7 @@ type Item = {
   sub: string;
   into?: string; // child node id → drill deeper
   kind?: AddKind; // leaf → store.addPart(kind)
+  doubled?: boolean; // leaf shelf → addPart(kind, { doubled: true }) — 2×16 → 32 мм
 };
 type Node = { title: string; items: Item[] };
 
@@ -34,7 +37,7 @@ const NODES: Record<string, Node> = {
     title: "Добавить › Полка",
     items: [
       { id: "shelf-normal", icon: "divide", title: "Обычная полка", sub: "16 мм · по ширине секции", kind: "shelf" },
-      { id: "shelf-double", icon: "double", title: "Удвоенная полка", sub: "2×16 → 32 мм · нагрузка", kind: "shelf" },
+      { id: "shelf-double", icon: "double", title: "Удвоенная полка", sub: "2×16 → 32 мм · нагрузка", kind: "shelf", doubled: true },
       { id: "shelf-pullout", icon: "slide", title: "Выдвижная", sub: "направляющие · конверт хода", kind: "drawer" },
       { id: "shelf-grid", icon: "grid", title: "Решётка / разделители", sub: "внутренняя сетка", kind: "divider" },
     ],
@@ -58,8 +61,12 @@ export function AddSheet() {
       drillInto(item.into);
       return;
     }
-    // leaf — wire the action (no-op engine until addInstance lands), then close
-    if (item.kind && sectionId) addPart(sectionId, item.kind);
+    if (!item.kind) {
+      closeAdd();
+      return;
+    }
+    if (!sectionId) return; // disabled — a leaf needs a target section
+    addPart(sectionId, item.kind, item.doubled ? { doubled: true } : undefined);
     closeAdd();
   };
 
@@ -75,16 +82,20 @@ export function AddSheet() {
           <Icon name="close" size={18} color={C.ink} />
         </Pressable>
       </View>
-      {node.items.map((it) => (
-        <MenuRow
-          key={it.id}
-          icon={it.icon}
-          title={it.title}
-          sub={it.sub}
-          trailing={it.into ? "chev" : "none"}
-          onPress={() => onItem(it)}
-        />
-      ))}
+      {node.items.map((it) => {
+        const leafDisabled = !it.into && !!it.kind && !sectionId;
+        return (
+          <View key={it.id} style={leafDisabled ? styles.disabled : undefined}>
+            <MenuRow
+              icon={it.icon}
+              title={it.title}
+              sub={it.sub}
+              trailing={it.into ? "chev" : "none"}
+              onPress={() => onItem(it)}
+            />
+          </View>
+        );
+      })}
       {!sectionId ? <Text style={styles.hint}>Выберите секцию, чтобы добавить деталь</Text> : null}
     </View>
   );
@@ -96,4 +107,5 @@ const styles = StyleSheet.create({
   hbtn: { width: 34, height: 34, alignItems: "center", justifyContent: "center" },
   title: { fontFamily: FONT, fontSize: 16, fontWeight: "800", color: C.ink, flex: 1, textAlign: "center" },
   hint: { fontFamily: FONT, fontSize: 12, color: C.ink2, textAlign: "center", paddingTop: 8 },
+  disabled: { opacity: 0.4 },
 });
