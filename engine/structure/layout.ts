@@ -145,6 +145,25 @@ function shelfPlacement(block: Block, inst: Instance): PanelPlacement | null {
   );
 }
 
+/** A facade/door placement: covers its section's front opening (single door only; the glazed-grid
+ *  assembly layout is a follow-up). */
+function facadePlacement(block: Block, inst: Instance): PanelPlacement | null {
+  const section = sectionById(block, inst.sectionId);
+  const component = componentById(block, inst.componentId);
+  if (!section || !component || component.role !== "facade" || component.glazedGrid) return null;
+  const s = section.box;
+  return place(
+    `${block.id}__inst_${inst.id}`,
+    component.name,
+    block.box.x + s.x,
+    block.box.y + s.y,
+    block.box.z + s.z, // the front face (near side of the section)
+    s.w,
+    s.h,
+    B,
+  );
+}
+
 /**
  * Positioned panels for the 3D viewport. Same panels (and ids) as `solveStructure`, but
  * each carries its place in the cabinet so the editor can render the assembled box.
@@ -155,7 +174,7 @@ export function solveLayout(model: StructuralModel): PanelPlacement[] {
     out.push(...(block.footprint ? lCornerLayout(block) : carcass(block)));
     for (const line of block.lines) out.push(dividerPlacement(block, line));
     for (const inst of block.instances) {
-      const p = shelfPlacement(block, inst);
+      const p = shelfPlacement(block, inst) ?? facadePlacement(block, inst);
       if (p) out.push(p);
     }
   }
