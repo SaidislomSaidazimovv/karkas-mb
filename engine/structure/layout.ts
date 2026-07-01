@@ -18,7 +18,7 @@ import type {
 } from "../contracts/structure.js";
 import { leafSections } from "../contracts/structure.js";
 import type { mm10 } from "../contracts/types.js";
-import { BOARD_MM10 } from "./solve.js";
+import { BOARD_MM10, CORNER_FILLER_W } from "./solve.js";
 
 /** A panel placed in the cabinet: position + size in mm10 (block-local; X=width, Y=height, Z=depth). */
 export interface PanelPlacement {
@@ -47,15 +47,58 @@ function place(
   return { id, name, x_mm10: x, y_mm10: y, z_mm10: z, w_mm10: w, h_mm10: h, d_mm10: d };
 }
 
-/** Carcass box: 2 sides (full height × depth) + top + bottom (inner width), positioned. */
+interface Box6 {
+  readonly x: mm10;
+  readonly y: mm10;
+  readonly z: mm10;
+  readonly w: mm10;
+  readonly h: mm10;
+  readonly d: mm10;
+}
+
+/** Carcass positioned for a run along X: 2 sides + top + bottom (inner width) + back. `omitSideR`
+ *  drops the right side (the L corner-join). */
+function carcassPlace(idBase: string, label: string, box: Box6, omitSideR = false): PanelPlacement[] {
+  const { x, y, z, w, h, d } = box;
+  const ps = [
+    place(`${idBase}__side_l`, `${label}Бок левый`, x, y, z, B, h, d),
+    place(`${idBase}__side_r`, `${label}Бок правый`, x + w - B, y, z, B, h, d),
+    place(`${idBase}__top`, `${label}Верх`, x + B, y + h - B, z, w - 2 * B, B, d),
+    place(`${idBase}__bottom`, `${label}Низ`, x + B, y, z, w - 2 * B, B, d),
+    place(`${idBase}__back`, `${label}Задняя стенка`, x, y, z + d - B, w, h, B),
+  ];
+  return omitSideR ? ps.filter((p) => !p.id.endsWith("__side_r")) : ps;
+}
+
 function carcass(block: Block): PanelPlacement[] {
-  const { x, y, z, w, h, d } = block.box;
+  return carcassPlace(block.id, "", block.box);
+}
+
+/** Carcass positioned for a return run along Z (the L's second leg, rotated 90°). The corner-end
+ *  side is omitted (it opens into leg-A); the far-end side is kept as `side_l`. Matches the 4 parts
+ *  solveStructure emits for leg-B (side_r omitted). */
+function carcassPlaceZ(idBase: string, label: string, box: Box6): PanelPlacement[] {
+  const { x, y, z, w, h, d } = box;
   return [
-    place(`${block.id}__side_l`, "Бок левый", x, y, z, B, h, d),
-    place(`${block.id}__side_r`, "Бок правый", x + w - B, y, z, B, h, d),
-    place(`${block.id}__top`, "Верх", x + B, y + h - B, z, w - 2 * B, B, d),
-    place(`${block.id}__bottom`, "Низ", x + B, y, z, w - 2 * B, B, d),
-    place(`${block.id}__back`, "Задняя стенка", x, y, z + d - B, w, h, B),
+    place(`${idBase}__side_l`, `${label}Бок левый`, x, y, z + d - B, w, h, B), // far end of the run
+    place(`${idBase}__top`, `${label}Верх`, x, y + h - B, z + B, w, B, d - 2 * B),
+    place(`${idBase}__bottom`, `${label}Низ`, x, y, z + B, w, B, d - 2 * B),
+    place(`${idBase}__back`, `${label}Задняя стенка`, x + w - B, y, z, B, h, d), // wall side (far X)
+  ];
+}
+
+/** Position an L-corner block: leg-A along X, leg-B as a Z-return behind it, + the corner filler. */
+function lCornerLayout(block: Block): PanelPlacement[] {
+  const fp = block.footprint!;
+  const { x, y, z, h } = block.box;
+  const aDepth = fp.legA.depth_mm10;
+  const aBox: Box6 = { x, y, z, w: fp.legA.length_mm10, h, d: aDepth };
+  const bBox: Box6 = { x, y, z: z + aDepth, w: fp.legB.depth_mm10, h, d: fp.legB.length_mm10 };
+  return [
+    ...carcassPlace(`${block.id}__legA`, "Плечо A · ", aBox),
+    ...carcassPlaceZ(`${block.id}__legB`, "Плечо B · ", bBox),
+    // A vertical filler strip at the inner corner (blocker #6).
+    place(`${block.id}__corner_filler`, "Угловая планка", x + fp.legB.depth_mm10, y, z + aDepth - CORNER_FILLER_W, B, h, CORNER_FILLER_W),
   ];
 }
 
@@ -104,7 +147,7 @@ function shelfPlacement(block: Block, inst: Instance): PanelPlacement | null {
 export function solveLayout(model: StructuralModel): PanelPlacement[] {
   const out: PanelPlacement[] = [];
   for (const block of model.blocks) {
-    out.push(...carcass(block));
+    out.push(...(block.footprint ? lCornerLayout(block) : carcass(block)));
     for (const line of block.lines) out.push(dividerPlacement(block, line));
     for (const inst of block.instances) {
       const p = shelfPlacement(block, inst);

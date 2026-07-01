@@ -157,8 +157,8 @@ function carcassParts(block: Block): Part[] {
 }
 
 // Corner-filler width (blocker #6) — a narrow strip that bridges the L junction. NOT fixture-
-// grounded; a reasonable default, confirm at the factory (S3-E7).
-const CORNER_FILLER_W: mm10 = 500; // 50 mm
+// grounded; a reasonable default, confirm at the factory (S3-E7). Exported so solveLayout places it.
+export const CORNER_FILLER_W: mm10 = 500; // 50 mm
 
 /**
  * An L-corner block (blocker #1: "block can be L, not just box; the corner object owns the
