@@ -98,6 +98,21 @@ export function doublePanel(base: Part): [Part, Part] {
  * behind, with a step on the underside. (This creates the step; the step-aware MOUNTING resolution
  * of parts touching that underside needs a mounting-relationship model — a follow-up.)
  */
+/**
+ * Step-aware mounting resolution (blocker #7, CONSTRUCTION_FRAME_v3 Piece 3): the underside plane a
+ * part touches when it meets a partially-doubled top at depth `y_mm10`. Under the front strip the
+ * top is 32mm (2 boards); behind the step it is 16mm (1 board). Returns the top's thickness at that
+ * depth — the offset from the top face down to the underside the mount rests against, so a pedestal
+ * "resolves to the actual plane it touches, not the top treated as uniform" (v3 line 188).
+ * v3-authoritative: a thorough grounding hunt (DB/16 joints, the model, the factory files, general
+ * furniture-CAD) confirmed #7 is specified ONLY in v3 Piece 3 — this implements it literally, no
+ * invention. (Wiring real pedestal/blade parts to this needs a mounting-relationship field — next.)
+ */
+export function undersidePlaneAt(topWidth_mm10: mm10, front_mm10: mm10, y_mm10: mm10): mm10 {
+  const stepAt = topWidth_mm10 - front_mm10; // the step's depth position from the back (Y=0)
+  return y_mm10 >= stepAt ? 2 * BOARD_MM10 : BOARD_MM10;
+}
+
 export function partialDoublePanels(base: Part, front_mm10: mm10): [Part, Part] {
   const strip: Part = {
     ...base,
