@@ -98,15 +98,25 @@ export function buildLCornerModel(): StructuralModel {
   const legA = { length_mm10: 10000, depth_mm10: 6000 }; // 1000mm run × 600mm deep
   const legB = { length_mm10: 8000, depth_mm10: 4000 }; //  800mm run × 400mm deep
 
+  // Content lives in a leg: leg-A holds one shelf (v3 §7 Piece 1 — the L-wardrobe's legs carry
+  // shelves). The section is sized to leg-A, so the shelf solves + positions inside that leg.
   const root: Section = {
     id: "sec_l",
     box: { x: 0, y: 0, z: 0, w: legA.length_mm10, h: H, d: legA.depth_mm10 },
     dividers: [],
     children: [],
-    instanceIds: [],
-    purpose: null,
+    instanceIds: ["inst_l_shelf"],
+    purpose: "storage",
   };
   const zone: Zone = { id: "z_l", name: "Корпус", rule: "manual", root };
+  const shelf: Component = { id: "cmp_l_shelf", name: "Полка", partIds: [], role: "internal_shelf" };
+  const shelfInst: Instance = {
+    id: "inst_l_shelf",
+    componentId: shelf.id,
+    sectionId: "sec_l",
+    anchor: { x: 0, y: 3600, z: 0 }, // mid-height
+    link: "linked",
+  };
 
   const block: Block = {
     id: "blk_l",
@@ -114,8 +124,8 @@ export function buildLCornerModel(): StructuralModel {
     box: { x: 0, y: 0, z: 0, w: legA.length_mm10, h: H, d: legA.depth_mm10 + legB.length_mm10 },
     footprint: { legA, legB },
     zones: [zone],
-    components: [],
-    instances: [],
+    components: [shelf],
+    instances: [shelfInst],
     lines: [],
     rows: [],
   };
