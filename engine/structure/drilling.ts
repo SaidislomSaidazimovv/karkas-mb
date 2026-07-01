@@ -136,6 +136,64 @@ function glazedInstanceIds(model: StructuralModel): Set<string> {
   return out;
 }
 
+/** Instance ids whose facade is a glazed-GRID (each frame member gets a pane rebate — E3, L8 #38). */
+function glazedGridInstanceIds(model: StructuralModel): Set<string> {
+  const out = new Set<string>();
+  for (const block of model.blocks) {
+    const gridComp = new Set(block.components.filter((c) => c.glazedGrid && c.role === "facade").map((c) => c.id));
+    for (const inst of block.instances) {
+      if (gridComp.has(inst.componentId)) out.add(inst.id);
+    }
+  }
+  return out;
+}
+
+/** For a glazed-grid sub-part `${block}__inst_${instId}__<member>[__a|__b]`, the root instance id +
+ *  the member tag ("stile_l" / "rail_b" / "muntin_0" / "glass_0"). Null for a plain (non-grid) part
+ *  — a bare `…__inst_${instId}` or a doubled plain-door layer `…__a`, which carry no member tag. */
+function gridMemberOf(partId: string): { instId: string; member: string } | null {
+  const marker = "__inst_";
+  const i = partId.indexOf(marker);
+  if (i === -1) return null;
+  const segs = partId.slice(i + marker.length).split("__"); // ["i1","stile_l","a"] | ["i1"] | ["i1","a"]
+  if (segs.length < 2) return null;
+  const instId = segs[0]!;
+  const member = segs.slice(1).filter((s) => s !== "a" && s !== "b").join("__");
+  return member ? { instId, member } : null;
+}
+
+/** 20 mm inset from each END of a frame bar, so the pane-seat groove clears the corner joints. */
+const MEMBER_REBATE_END_INSET: mm10 = 200;
+
+/**
+ * A pane-seat rebate groove running along a glazed-grid frame BAR (stile / rail / muntin), centred
+ * on the bar's width on the back face (B). L8 #38 requires the groove emitted, not implied; the
+ * factory cuts it off-SWJ008, so — like the single-pane rebate — these dimensions are flagged
+ * defaults, NOT fixture-grounded. A central slot serves both a frame member (pane on the inner side)
+ * and a muntin (a pane each side), which avoids guessing per-member edge handedness.
+ */
+function memberRebate(part: Part): SawGrooveOp[] {
+  const L = part.length_mm10;
+  const W = part.width_mm10;
+  const e = MEMBER_REBATE_END_INSET;
+  if (W <= 0 || L - e <= e) return []; // bar too short for a groove
+  const y = Math.round(W / 2);
+  return [
+    {
+      op: "saw_groove",
+      id: `glass_${part.id}_0`,
+      face: "B",
+      x_mm10: e,
+      y_mm10: y,
+      endX_mm10: L - e,
+      endY_mm10: y,
+      width_mm10: GLASS_REBATE_WIDTH,
+      depth_mm10: GLASS_REBATE_DEPTH,
+      source: "auto",
+    },
+  ];
+}
+
 /**
  * L8 #38 glass rebate: a rectangular groove inset from the door edges on the back face (B),
  * seating the glass pane. Four straight saw-grooves form the rectangle. Dimensions are the
@@ -180,6 +238,7 @@ export function applyDrilling(
   const shelves = shelvesByBlock(model);
   const facades = facadeInstanceIds(model);
   const glazed = glazedInstanceIds(model);
+  const glazedGrids = glazedGridInstanceIds(model);
   const pin = spec.shelfPins[SHELF_PIN_SKU];
   const system32 = spec.system32;
   const hinge = spec.hinges[HINGE_SKU];
@@ -193,6 +252,18 @@ export function applyDrilling(
       if (xs.length === 0) return part;
       return { ...part, operations: [...part.operations, ...shelfPinPattern(part, xs, { pin, system32 })] };
     }
+    // Glazed-grid frame member → a pane-seat rebate on each stile/rail (outer __a board) and each
+    // muntin (E3, L8 #38). Glass panes and the inner __b board carry none.
+    const gm = gridMemberOf(part.id);
+    if (gm && glazedGrids.has(gm.instId)) {
+      const isFrame = ["stile_l", "stile_r", "rail_b", "rail_t"].includes(gm.member);
+      const groove =
+        (isFrame && part.id.endsWith("__a")) || gm.member.startsWith("muntin")
+          ? memberRebate(part)
+          : [];
+      return groove.length === 0 ? part : { ...part, operations: [...part.operations, ...groove] };
+    }
+
     // Facade/door → hinge cups (y0 edge, GROUNDED: SHKOF door cups at Y=21.5) + the glass rebate
     // groove when the facade is glazed (L8 #38).
     const instId = instIdOf(part.id);
