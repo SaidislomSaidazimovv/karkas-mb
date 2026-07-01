@@ -1,7 +1,6 @@
 // src/toolbar/BottomToolbar.tsx — Zone 6 (bottom toolbar, mode verbs). OWNER: T2.
 // L7: mode sets the verbs. 5 slots; the 5th is "reserved" (—) in Material/Hardware/Frame.
 // design: construction-v3-preview.html §5 (.toolbar per mode).
-import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp, loadBearingTargets, anyLoadBearing, type Mode } from "../../store/appStore";
 import { usePanelUi } from "../sheets/panelUi";
@@ -43,6 +42,8 @@ const SLOTS: Record<Mode, Slot[]> = {
 
 export function BottomToolbar() {
   const mode = useApp((s) => s.mode);
+  const modeTab = useApp((s) => s.modeTab);
+  const setModeTab = useApp((s) => s.setModeTab);
   const selection = useApp((s) => s.selection);
   const model = useApp((s) => s.model);
   const declareLoadBearing = useApp((s) => s.declareLoadBearing);
@@ -71,12 +72,9 @@ export function BottomToolbar() {
     if (key === "move") return hasSel ? close() : flashHint("Двиг.: перетаскивайте деталь на модели");
     close(); // «Выбор» → clean slate (tap parts on the model to select)
   };
-  // Active verb is local toolbar state (the selected verb within a mode); the first
-  // non-reserved slot is the default. Switching mode resets it via the keyed default below.
-  const [activeByMode, setActiveByMode] = useState<Record<Mode, string>>({
-    build: "select", material: "coat", hardware: "hinge", frame: "double",
-  });
-  const active = activeByMode[mode];
+  // The active sub-verb per mode is SHARED (store) so the SelectionSheet body can render the section
+  // this verb selects (L7: "mode sets verbs, the verb switches the card-body sub-section").
+  const active = modeTab[mode];
 
   return (
     <View style={styles.bar}>
@@ -88,11 +86,12 @@ export function BottomToolbar() {
             style={styles.slot}
             disabled={slot.reserved}
             onPress={() => {
-              setActiveByMode((m) => ({ ...m, [mode]: slot.key }));
-              // Build verbs open their sheet (Разм.→resize, Дел.→divide, Доб.→add); other modes edit
-              // in the always-visible SelectionSheet body, so their verbs just clear a stray overlay.
+              setModeTab(mode, slot.key);
+              // Build verbs open their sheet (Разм.→resize, Дел.→divide, Доб.→add). In the other
+              // modes the verb selects the card-body sub-section (Material/Hardware/Frame); «Несущ.»
+              // also toggles load-bearing. Dismiss any takeover so the card (this section) shows.
               if (mode === "build") runBuildVerb(slot.key);
-              else if (mode === "hardware" && slot.key === "bearing") runBearing();
+              else if (mode === "hardware" && slot.key === "bearing") { close(); runBearing(); }
               else close();
             }}
           >

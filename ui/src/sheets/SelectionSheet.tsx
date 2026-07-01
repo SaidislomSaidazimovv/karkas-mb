@@ -103,6 +103,7 @@ export function SelectionSheet() {
   const scene = useApp((s) => s.scene);
   const selection = useApp((s) => s.selection);
   const mode = useApp((s) => s.mode);
+  const modeTab = useApp((s) => s.modeTab);
   const resize = useApp((s) => s.resize);
   const detach = useApp((s) => s.detach);
   const clearSelection = useApp((s) => s.clearSelection);
@@ -139,7 +140,6 @@ export function SelectionSheet() {
   const depth = dOver ?? dReal;
 
   // local UI state for placeholder modes
-  const [hw, setHw] = useState<"hinge" | "handle" | "slide">("hinge");
   const [material, setMaterial] = useState("oak-sonoma");
   const [partial, setPartial] = useState(true);
   // #39 per-edge kromka — seeded from the selected component's live override (or the role default),
@@ -251,13 +251,12 @@ export function SelectionSheet() {
         />
       )}
       {mode === "material" && (
-        <MaterialBody selected={material} onSelect={setMaterial} edges={edges} onCycleEdge={cycleEdge} />
+        <MaterialBody tab={modeTab.material} selected={material} onSelect={setMaterial} edges={edges} onCycleEdge={cycleEdge} />
       )}
       {mode === "hardware" && (
         <HardwareBody
           name={name}
-          value={hw}
-          onChange={setHw}
+          tab={modeTab.hardware}
           bearing={anyLoadBearing(model, loadBearingTargets(model, selection))}
           onBearing={(v) => loadBearingTargets(model, selection).forEach((id) => declareLoadBearing(id, v))}
         />
@@ -265,7 +264,10 @@ export function SelectionSheet() {
       {mode === "frame" && (
         <FrameBody
           name={name}
+          tab={modeTab.frame}
           glaze={componentGlaze(model, cid)}
+          edges={edges}
+          onCycleEdge={cycleEdge}
           partial={partial}
           onPartial={setPartial}
           band={componentBand(model, cid) ?? "butt"}
@@ -332,11 +334,40 @@ function BuildBody({
 /* ===================== MATERIAL (placeholder body — engine: S3-E5) =====================
    §5: покрытие-katalog + per-edge kromka. Local-only UI — store'ga yozmaydi (engine kutiladi). */
 function MaterialBody({
-  selected, onSelect, edges, onCycleEdge,
+  tab, selected, onSelect, edges, onCycleEdge,
 }: {
-  selected: string; onSelect: (id: string) => void;
+  tab: string; selected: string; onSelect: (id: string) => void;
   edges: Record<EdgeKey, EdgeBand>; onCycleEdge: (e: EdgeKey) => void;
 }) {
+  // «Кром.» — the REAL per-edge kromka (writes to the model via setEdgeBands). The others (Покр./Цвет/
+  // Роль) are catalog placeholders until the engine material field (deferred #8, catalog doc-17 OOS).
+  if (tab === "edge") {
+    return (
+      <>
+        <Text style={styles.sectionLabel}>Кромка по краям · #39</Text>
+        <EdgeKromka values={edges} onCycle={onCycleEdge} />
+      </>
+    );
+  }
+  if (tab === "color") {
+    return (
+      <>
+        <Text style={styles.sectionLabel}>Цвет · placeholder (движок материалов позже)</Text>
+        {MATERIAL_CATALOG.map((m) => (
+          <ListRow key={m.id} swatch={m.swatch} title={m.name} sub="цвет покрытия" selected={m.id === selected} onPress={() => onSelect(m.id)} />
+        ))}
+      </>
+    );
+  }
+  if (tab === "role") {
+    return (
+      <>
+        <Text style={styles.sectionLabel}>Роль детали · placeholder</Text>
+        <Text style={styles.note}>Роль (боковина / полка / фасад) задаётся структурой. Редактор роли — позже.</Text>
+      </>
+    );
+  }
+  // «Покр.» (default) — the coating catalog.
   return (
     <>
       <View style={styles.counts}>
@@ -348,7 +379,6 @@ function MaterialBody({
       {MATERIAL_CATALOG.map((m) => (
         <ListRow key={m.id} swatch={m.swatch} title={m.name} sub={m.sub} selected={m.id === selected} onPress={() => onSelect(m.id)} />
       ))}
-      <EdgeKromka values={edges} onCycle={onCycleEdge} />
     </>
   );
 }
@@ -371,67 +401,116 @@ const HARDWARE_OPTIONS: Record<"hinge" | "handle" | "slide", { id: string; icon:
 };
 
 function HardwareBody({
-  name, value, onChange, bearing, onBearing,
+  name, tab, bearing, onBearing,
 }: {
-  name: string; value: "hinge" | "handle" | "slide"; onChange: (k: "hinge" | "handle" | "slide") => void;
-  bearing: boolean; onBearing: (v: boolean) => void;
+  name: string; tab: string; bearing: boolean; onBearing: (v: boolean) => void;
 }) {
-  const [pick, setPick] = useState<string>(HARDWARE_OPTIONS[value][0]!.id);
+  // «Несущ.» → the L5 load-bearing declaration (real). Петли/Ручки/Напр → that hardware's option
+  // list (placeholder catalog — hinge SELECTION is beyond v3; only the fit-check U11 is required).
+  const [pick, setPick] = useState<string>("");
+  if (tab === "bearing") {
+    return (
+      <>
+        <SheetHeader icon="target" title={name} role="несущая деталь">
+          {bearing ? <Badge icon="target" label="несущая" tone="cut" /> : null}
+        </SheetHeader>
+        <Toggle label="Несущая деталь (нагрузка)" value={bearing} onChange={onBearing} />
+        <Text style={styles.note}>⚠ появляется выше, если пролёт детали превышает предел 16 мм.</Text>
+      </>
+    );
+  }
+  const hw: "hinge" | "handle" | "slide" = tab === "handle" ? "handle" : tab === "slide" ? "slide" : "hinge";
+  const role = hw === "hinge" ? "петля · накладная" : hw === "handle" ? "ручка" : "направляющая";
   return (
     <>
-      <SheetHeader icon="hinge" title={name} role="2 петли · накладная">
-        {bearing ? <Badge icon="target" label="несущая" tone="cut" /> : null}
-      </SheetHeader>
-      {/* L5 «Несущ.» — declare this part load-bearing → a ⚠ appears above if its span is over the
-          16mm limit. Non-blocking (never blocks export). */}
-      <Toggle label="Несущая деталь (нагрузка)" value={bearing} onChange={onBearing} />
-      <View style={{ paddingVertical: 6 }}>
-        <Segment
-          value={value}
-          onChange={(k) => { onChange(k); setPick(HARDWARE_OPTIONS[k][0]!.id); }}
-          options={[
-            { key: "hinge", label: "Петля" },
-            { key: "handle", label: "Ручка" },
-            { key: "slide", label: "Направл." },
-          ]}
-        />
-      </View>
-      {HARDWARE_OPTIONS[value].map((o) => (
+      <SheetHeader icon={hw} title={name} role={role} />
+      {HARDWARE_OPTIONS[hw].map((o) => (
         <MenuRow
           key={o.id}
           icon={o.icon}
           title={o.title}
           sub={o.sub}
-          trailing={o.id === pick ? "check" : "none"}
+          trailing={o.id === (pick || HARDWARE_OPTIONS[hw][0]!.id) ? "check" : "none"}
           onPress={() => setPick(o.id)}
         />
       ))}
+      <Text style={styles.note}>Выбор фурнитуры · placeholder (движок фурнитуры позже).</Text>
     </>
   );
 }
 
 /* ===================== FRAME (live: #39 band-transition + #40 junction editor) ===================== */
 function FrameBody({
-  name, glaze, partial, onPartial, band, onBand, jx, jy, jz, onJx, onJy, onJz, onReset,
+  name, tab, glaze, edges, onCycleEdge, partial, onPartial, band, onBand, jx, jy, jz, onJx, onJy, onJz, onReset,
 }: {
-  name: string; glaze: "none" | "single" | "grid"; partial: boolean; onPartial: (v: boolean) => void;
+  name: string; tab: string; glaze: "none" | "single" | "grid";
+  edges: Record<EdgeKey, EdgeBand>; onCycleEdge: (e: EdgeKey) => void;
+  partial: boolean; onPartial: (v: boolean) => void;
   band: BandTransition; onBand: (v: BandTransition) => void;
   jx: number; jy: number; jz: number;
   onJx: (mm: number) => void; onJy: (mm: number) => void; onJz: (mm: number) => void;
   onReset: () => void;
 }) {
+  // Each toolbar verb selects one real section: Удвн (doubling) · Кром (kromka) · Стык (#39) · Смещ (#40).
+  const header = (
+    <SheetHeader icon="double" title={name} role="каркас-деталь">
+      {glaze !== "none" ? <Badge icon="check" label="паз под стекло" tone="ok" /> : null}
+    </SheetHeader>
+  );
+
+  if (tab === "edge") {
+    return (
+      <>
+        {header}
+        <Text style={styles.sectionLabel}>Кромка по краям · #39</Text>
+        <EdgeKromka values={edges} onCycle={onCycleEdge} />
+      </>
+    );
+  }
+
+  if (tab === "junction") {
+    return (
+      <>
+        {header}
+        <Text style={styles.sectionLabel}>Стык кромок в углу · #39</Text>
+        <Segment
+          value={band}
+          onChange={onBand}
+          options={[
+            { key: "butt", label: "Стык" },
+            { key: "mitre", label: "Ус" },
+            { key: "overlap", label: "Нахлёст" },
+          ]}
+        />
+      </>
+    );
+  }
+
+  if (tab === "offset") {
+    return (
+      <>
+        {header}
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionLabel}>Смещение стыка · #40</Text>
+          <Pressable onPress={onReset} hitSlop={6}>
+            <Text style={styles.reset}>Сбросить</Text>
+          </Pressable>
+        </View>
+        <NumberStepper label="Вынос · X" value_mm={jx} step={1} max={200} onChange={onJx} />
+        <NumberStepper label="Отступ · Y" value_mm={jy} step={1} max={200} onChange={onJy} />
+        <NumberStepper label="Зазор · Z (тень)" value_mm={jz} step={1} max={200} onChange={onJz} />
+      </>
+    );
+  }
+
+  // «Удвн.» (default) — doubling + the #38 glass-rebate indicator.
   return (
     <>
       <SheetHeader icon="double" title={name} role="⧉ удвоение · 32 мм фронт">
         <Badge icon="double" label="2 слоя" tone="comp" />
         <Badge label="кромка 32мм" tone="neutral" />
         {glaze !== "none" ? <Badge icon="check" label="паз под стекло" tone="ok" /> : null}
-        {/* S3-U3: static «риск» removed — live ⚠ now renders from store findings via <Warnings/> */}
       </SheetHeader>
-
-      {/* #38 glass-rebate indicator (L8 "the groove that holds the pane is CUT, not implied"). A
-          glazed door/vitrine emits its rebate groove in the cut-list; show it so it's visible, not
-          assumed. */}
       {glaze !== "none" && (
         <View style={styles.rebate} pointerEvents="none">
           <Text style={styles.rebateT}>Паз под стекло · #38</Text>
@@ -442,31 +521,7 @@ function FrameBody({
           </Text>
         </View>
       )}
-
       <Toggle label="Частичное удвоение (фронт 100мм)" value={partial} onChange={onPartial} />
-
-      {/* #39 corner band-transition (32↔16 в углу) — emitted, not assumed */}
-      <Text style={styles.sectionLabel}>Стык кромок в углу · #39</Text>
-      <Segment
-        value={band}
-        onChange={onBand}
-        options={[
-          { key: "butt", label: "Стык" },
-          { key: "mitre", label: "Ус" },
-          { key: "overlap", label: "Нахлёст" },
-        ]}
-      />
-
-      {/* #40 junction value editor (X/Y/Z) — off-plane offset, 3 values not 1 action */}
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionLabel}>Смещение стыка · #40</Text>
-        <Pressable onPress={onReset} hitSlop={6}>
-          <Text style={styles.reset}>Сбросить</Text>
-        </Pressable>
-      </View>
-      <NumberStepper label="Вынос · X" value_mm={jx} step={1} max={200} onChange={onJx} />
-      <NumberStepper label="Отступ · Y" value_mm={jy} step={1} max={200} onChange={onJy} />
-      <NumberStepper label="Зазор · Z (тень)" value_mm={jz} step={1} max={200} onChange={onJz} />
     </>
   );
 }

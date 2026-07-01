@@ -277,6 +277,7 @@ export interface AppState {
   model: StructuralModel | null;
   selection: Selection;
   mode: Mode;
+  modeTab: Record<Mode, string>;
   view: ViewLens[];
   price_sum: number;
   preview: PreviewResult | null;
@@ -294,6 +295,8 @@ export interface AppState {
   selectSection(sectionId: SectionId): void;
   clearSelection(): void;
   setMode(mode: Mode): void;
+  /** L7: set the active sub-verb for a mode (the toolbar verb → card-body sub-section). */
+  setModeTab(mode: Mode, key: string): void;
   toggleView(lens: ViewLens): void;
   toggleHidden(partId: PartId): void;
   showAll(): void;
@@ -354,6 +357,8 @@ export const useApp = create<AppState>((set, get) => ({
   model: INITIAL_MODEL,
   selection: NO_SELECTION,
   mode: "build",
+  // Active sub-verb per mode (L7: the toolbar verb switches the selection-card body sub-section).
+  modeTab: { build: "select", material: "coat", hardware: "hinge", frame: "double" },
   // Boot with «Разрез» on: this is a CONSTRUCTION tool — you work INSIDE the cabinet, so the
   // interior (shelves/dividers/doors) must be visible + tappable from the first frame. Toggle ⬚ off
   // to see the solid cabinet.
@@ -400,6 +405,9 @@ export const useApp = create<AppState>((set, get) => ({
   },
   setMode(mode) {
     set({ mode });
+  },
+  setModeTab(mode, key) {
+    set({ modeTab: { ...get().modeTab, [mode]: key } });
   },
   toggleView(lens) {
     const v = get().view;
